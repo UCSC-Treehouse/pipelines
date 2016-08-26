@@ -24,4 +24,4 @@ test:
 
 verify:
 	# Verify the output of the test run
-	md5sum -c TEST.tar.gz.md5 /input
+	md5sum -c TEST.tar.gz.md5 /inputs
