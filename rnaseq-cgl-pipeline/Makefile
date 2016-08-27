@@ -1,16 +1,20 @@
 # Treehouse RNA Seq Pipeline
 # See https://github.com/BD2KGenomics/cgl-docker-lib/tree/master/rnaseq-cgl-pipeline
 
-all: download test verify
+SAMPLES = $(shell ls -d samples/* | sed -e 's/samples/\/samples/g')
+
+all: download run verify
 
 download:
-	# Download reference files
+	echo "Downloading reference files into inputs/"
+	mkdir -p inputs
 	wget -N -P inputs https://treehouse.blob.core.windows.net/reference/kallisto_hg38.idx
 	wget -N -P inputs https://treehouse.blob.core.windows.net/reference/starIndex_hg38_no_alt.tar.gz
 	wget -N -P inputs https://treehouse.blob.core.windows.net/reference/rsem_ref_hg38_no_alt.tar.gz
 
-test:
-	# Run the test file through the pipeline
+run:
+	# Run the pipeline on all files listed in SAMPLES
+	echo "Running pipeline on $(SAMPLES)"
 	docker run \
 		-v $(shell pwd)/outputs:$(shell pwd)/outputs \
 		-v $(shell pwd)/samples:/samples \
@@ -20,8 +24,8 @@ test:
 		--star /inputs/starIndex_hg38_no_alt.tar.gz \
 		--rsem /inputs/rsem_ref_hg38_no_alt.tar.gz \
 		--kallisto /inputs/kallisto_hg38.idx \
-		--samples /samples/TEST.tar
+		--samples $(SAMPLES)
 
 verify:
-	# Verify one of the output files from the test run
-	tar -xOzvf outputs/TEST0.tar.gz TEST/RSEM/rsem.genes.norm_counts.tab | md5sum -c TEST.md5
+	echo "Verifying output of test file"
+	tar -xOzvf outputs/TEST.tar.gz TEST/RSEM/rsem.genes.norm_counts.tab | md5sum -c TEST.md5
