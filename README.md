@@ -8,22 +8,22 @@ Requirments: Docker 1.12.1, 40G Memory, 100G Storage per Sample
 
 Install and Test:
 
-  git clone https://github.com/UCSC-Treehouse/pipelines.git
-  cd pipelines/rnaseq-cgl-pipeline
-  make
+    git clone https://github.com/UCSC-Treehouse/pipelines.git
+    cd pipelines/rnaseq-cgl-pipeline
+    make
 
 Reference files will be downloaded into inputs/, a test file
 processed and the output verified. After about 20 minutes
 you should see:
 
-  TEST/RSEM/rsem.genes.norm_counts.tab
-  -: OK
+    TEST/RSEM/rsem.genes.norm_counts.tab
+    -: OK
 
 To process your own samples place a tar file per sample
 in samples/ consisting of two paired read fastq's with
 standard R1 R2 naming and then:
 
-  make run
+    make run
 
 Intermediate files will be stores in outputs/ with the final
 output names after the input filename with .gz on the end.
