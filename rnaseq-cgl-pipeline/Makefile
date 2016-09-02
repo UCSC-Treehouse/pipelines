@@ -8,9 +8,10 @@ all: download run verify
 download:
 	echo "Downloading reference files into inputs/"
 	mkdir -p inputs
-	wget -N -P inputs https://treehouse.blob.core.windows.net/reference/kallisto_hg38.idx
-	wget -N -P inputs https://treehouse.blob.core.windows.net/reference/starIndex_hg38_no_alt.tar.gz
-	wget -N -P inputs https://treehouse.blob.core.windows.net/reference/rsem_ref_hg38_no_alt.tar.gz
+	wget -N -P inputs http://hgdownload.soe.ucsc.edu/treehouse/reference/kallisto_hg38.idx
+	wget -N -P inputs http://hgdownload.soe.ucsc.edu/treehouse/reference/starIndex_hg38_no_alt.tar.gz
+	wget -N -P inputs http://hgdownload.soe.ucsc.edu/treehouse/reference/rsem_ref_hg38_no_alt.tar.gz
+	(cd inputs && md5sum -c inputs.md5)
 
 run:
 	# Run the pipeline on all files listed in SAMPLES
@@ -28,4 +29,4 @@ run:
 
 verify:
 	echo "Verifying output of test file"
-	tar -xOzvf outputs/TEST.tar.gz TEST/RSEM/rsem.genes.norm_counts.tab | md5sum -c TEST.md5
+	tar -xOzvf outputs/TEST.tar.gz TEST/RSEM/rsem.genes.norm_counts.tab | md5sum -c outputs/TEST.md5
