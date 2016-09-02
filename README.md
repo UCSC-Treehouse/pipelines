@@ -26,9 +26,10 @@ standard R1 R2 naming and then:
     make run
 
 Intermediate files will be stores in outputs/ with the final
-output names after the input filename with .gz on the end.
-A typical single input file running on a 16 core 120G server takes
-about 8 hours.
+output named after the input filename with .gz on the end.
+A typical single sample running on a 16 core 120G server will
+take about 8 hours to process. Additional samples submitted
+at the same time will take a bit less.
 
 See https://github.com/BD2KGenomics/cgl-docker-lib/tree/master/rnaseq-cgl-pipeline
 for more details.
