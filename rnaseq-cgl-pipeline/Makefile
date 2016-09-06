@@ -22,6 +22,7 @@ run:
 		-v $(shell pwd)/inputs:/inputs \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		quay.io/ucsc_cgl/rnaseq-cgl-pipeline:2.0.8 \
+		--save-wiggle --save-bam \
 		--star /inputs/starIndex_hg38_no_alt.tar.gz \
 		--rsem /inputs/rsem_ref_hg38_no_alt.tar.gz \
 		--kallisto /inputs/kallisto_hg38.idx \
