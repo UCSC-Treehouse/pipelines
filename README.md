@@ -31,5 +31,4 @@ A typical single sample running on a 16 core 120G server will
 take about 8 hours to process. Additional samples submitted
 at the same time will take a bit less.
 
-See https://github.com/BD2KGenomics/cgl-docker-lib/tree/master/rnaseq-cgl-pipeline
-for more details.
+See https://github.com/BD2KGenomics/toil-rnaseq for more details.
