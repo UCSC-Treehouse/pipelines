@@ -32,3 +32,8 @@ take about 8 hours to process. Additional samples submitted
 at the same time will take a bit less.
 
 See https://github.com/BD2KGenomics/toil-rnaseq for more details.
+
+To run the docker interactively:
+
+    docker run -ti --entrypoint=/bin/bash quay.io/ucsc_cgl/rnaseq-cgl-pipeline:2.0.8 -s
+
