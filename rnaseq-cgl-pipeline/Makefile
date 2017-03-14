@@ -3,7 +3,7 @@
 
 SAMPLES = $(shell ls -d samples/* | sed -e 's/samples/\/samples/g')
 
-all: download run verify
+all: download run-rnaseq verify
 
 download:
 	echo "Downloading reference files into inputs/"
@@ -13,7 +13,7 @@ download:
 	wget -N -P inputs http://hgdownload.soe.ucsc.edu/treehouse/reference/rsem_ref_hg38_no_alt.tar.gz
 	(cd inputs && md5sum -c inputs.md5)
 
-run:
+run-rnaseq:
 	# Run the pipeline on all files listed in SAMPLES
 	echo "Running pipeline on $(SAMPLES)"
 	docker run \
@@ -21,12 +21,22 @@ run:
 		-v $(shell pwd)/samples:/samples \
 		-v $(shell pwd)/inputs:/inputs \
 		-v /var/run/docker.sock:/var/run/docker.sock \
-		quay.io/ucsc_cgl/rnaseq-cgl-pipeline:2.0.8 \
+		quay.io/ucsc_cgl/rnaseq-cgl-pipeline:3.2.1-1 \
 		--save-wiggle --save-bam \
 		--star /inputs/starIndex_hg38_no_alt.tar.gz \
 		--rsem /inputs/rsem_ref_hg38_no_alt.tar.gz \
 		--kallisto /inputs/kallisto_hg38.idx \
 		--samples $(SAMPLES)
+
+run-qc
+	#Run QC
+	docker run --rm --name qc \
+		-v /mnt/data/outputs/qc:/data \
+		-v {}:/data/rnaAligned.sortedByCoord.out.bam \
+        	hbeale/treehouse_bam_qc:1.0 runQC.sh
+		docker run -v /pod/pstore/users/hbeale/QC_EGAR00001124513_RNA-seq_PAIRED_ICGC_PA138_s_120816_3b:/data hbeale/treehouse_bam_qc:1.0 runQC.sh
+
+
 
 verify:
 	echo "Verifying output of test file"
