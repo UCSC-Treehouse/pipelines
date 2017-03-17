@@ -30,11 +30,19 @@ run-rnaseq:
 
 run-qc
 	#Run QC
-	docker run --rm --name qc \
-		-v /mnt/data/outputs/qc:/data \
-		-v {}:/data/rnaAligned.sortedByCoord.out.bam \
-        	hbeale/treehouse_bam_qc:1.0 runQC.sh
-		docker run -v /pod/pstore/users/hbeale/QC_EGAR00001124513_RNA-seq_PAIRED_ICGC_PA138_s_120816_3b:/data hbeale/treehouse_bam_qc:1.0 runQC.sh
+	for BAM in /outputs/*.bam;
+	echo "running QC on $BAM"
+		mkdir ${BAM%%.*};
+		cp $BAM ${BAM%%.*};
+		cd ${BAM%%.*};
+		mv $BAM rnaAligned.sortedByCoord.out.bam;
+		$bam_loc=$(readlink -f $BAM);
+		docker run --rm --name qc \
+			-v /mnt/data/outputs/qc:/data \
+			-v {}:/data/rnaAligned.sortedByCoord.out.bam \
+			hbeale/treehouse_bam_qc:1.0 runQC.sh
+			docker run -v $bam_loc:/data hbeale/treehouse_bam_qc:1.0 runQC.sh;
+	done
 
 
 
