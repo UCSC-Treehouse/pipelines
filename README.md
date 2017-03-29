@@ -1,16 +1,30 @@
 # UCSC Treehouse Pipelines
 
-Makefiles to standardize running Treehouse pipelines at partner sites.
+Makefiles to run pipelines used in Treehouse at partner sites
 
-# RNASeq 2.0.8
+# Requirements
+
+Docker 1.12.1 or greater
+40G Memory
+100G Storage per Sample
+
+# Getting Started
+
+Clone this repository and then run 'make':
+
+    git clone https://github.com/UCSC-Treehouse/pipelines.git
+    make
+
+References will be downloaded, verified via MD5, and then included test files will be run through the pipelines and outputs verified. This will take approximately X minutes on a 16 core machine. At the end you should see:
+
+OK
+
+# Expression and QC
+
+    https://github.com/BD2KGenomics/toil-rnaseq
 
 Requirments: Docker 1.12.1, 40G Memory, 100G Storage per Sample
 
-Install and Test:
-
-    git clone https://github.com/UCSC-Treehouse/pipelines.git
-    cd pipelines/rnaseq-cgl-pipeline
-    make
 
 Reference files will be downloaded into inputs/, a test file
 processed and the output verified. After about 20 minutes
