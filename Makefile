@@ -1,7 +1,7 @@
 # Simple command line running of pipelines used in Treehouse
 
-# SAMPLES = $(shell find samples/ -path '*fastq*' | tr '\n' ',' | sed 's/,$$//')
-SAMPLES = "/samples/TEST_R1.fastq.gz,/samples/TEST_R2.fastq.gz"
+SAMPLES = $(shell find samples/ -path '*fastq*' | tr '\n' ',' | sed 's/,$$//')
+# SAMPLES = "/samples/TEST_R1.fastq.gz,/samples/TEST_R2.fastq.gz"
 
 echo:
 	echo "$(SAMPLES)"
@@ -26,7 +26,8 @@ expression:
 		-v $(shell pwd)/work:$(shell pwd)/work \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		quay.io/ucsc_cgl/rnaseq-cgl-pipeline:3.2.1-1 \
-		--logDebug --no-clean \
+		--logDebug \
+		--bamqc \
 		--star /references/starIndex_hg38_no_alt.tar.gz \
 		--rsem /references/rsem_ref_hg38_no_alt.tar.gz \
 		--kallisto /references/kallisto_hg38.idx \
