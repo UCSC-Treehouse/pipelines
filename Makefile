@@ -23,7 +23,6 @@ expression:
 		-v $(shell pwd)/outputs:$(shell pwd)/outputs \
 		-v $(shell pwd)/samples:/samples \
 		-v $(shell pwd)/references:/references \
-		-v $(shell pwd)/work:$(shell pwd)/work \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		quay.io/ucsc_cgl/rnaseq-cgl-pipeline:3.2.1-1 \
 		--logDebug \
@@ -31,7 +30,7 @@ expression:
 		--star /references/starIndex_hg38_no_alt.tar.gz \
 		--rsem /references/rsem_ref_hg38_no_alt.tar.gz \
 		--kallisto /references/kallisto_hg38.idx \
-		--work_mount $(shell pwd)/work \
+		--work_mount $(shell pwd)/outputs \
 		--sample-paired $(SAMPLES)
 
 fusion:
@@ -46,4 +45,4 @@ fusion:
 
 verify:
 	echo "Verifying output of test file"
-	tar -xOzvf outputs/TEST.tar.gz TEST/RSEM/rsem.genes.norm_counts.tab | md5sum -c outputs/TEST.md5
+	tar -xOzvf work/TEST_R1merged.tar.gz FAIL.TEST_R1merged/RSEM/rsem_genes.results | md5sum -c outputs/TEST.md5
