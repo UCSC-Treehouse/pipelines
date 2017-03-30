@@ -1,6 +1,10 @@
 # Simple command line running of pipelines used in Treehouse
 
-SAMPLES = $(shell ls -d samples/* | sed -e 's/samples/\/samples/g')
+# SAMPLES = $(shell find samples/ -path '*fastq*' | tr '\n' ',' | sed 's/,$$//')
+SAMPLES = "/samples/TEST_R1.fastq.gz,/samples/TEST_R2.fastq.gz"
+
+echo:
+	echo "$(SAMPLES)"
 
 download:
 	echo "Downloading reference files..."
@@ -14,19 +18,20 @@ download:
 expression:
 	# Run the pipeline on all files listed in SAMPLES
 	echo "Running expression and qc pipeline on $(SAMPLES)"
+	mkdir -p work
 	docker run \
 		-v $(shell pwd)/outputs:$(shell pwd)/outputs \
 		-v $(shell pwd)/samples:/samples \
 		-v $(shell pwd)/references:/references \
-		-v /tmp:/work \
+		-v $(shell pwd)/work:$(shell pwd)/work \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		quay.io/ucsc_cgl/rnaseq-cgl-pipeline:3.2.1-1 \
-		--save-wiggle --save-bam \
+		--logDebug --no-clean \
 		--star /references/starIndex_hg38_no_alt.tar.gz \
 		--rsem /references/rsem_ref_hg38_no_alt.tar.gz \
 		--kallisto /references/kallisto_hg38.idx \
-		--work_mount /work \
-		--sample-paired /samples
+		--work_mount $(shell pwd)/work \
+		--sample-paired $(SAMPLES)
 
 fusion:
 	mkdir outputs/fusion

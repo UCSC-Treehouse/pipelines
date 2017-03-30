@@ -5,7 +5,7 @@ Makefiles to run pipelines used in Treehouse at partner sites
 # Requirements
 
 Docker 1.12.1 or greater
-40G Memory
+50G Memory
 100G Storage per Sample
 
 # Getting Started
@@ -21,25 +21,11 @@ OK
 
 # Expression and QC
 
+    make expression
+
     https://github.com/BD2KGenomics/toil-rnaseq
 
-Requirments: Docker 1.12.1, 40G Memory, 100G Storage per Sample
-
-
-Reference files will be downloaded into inputs/, a test file
-processed and the output verified. After about 20 minutes
-you should see:
-
-    TEST/RSEM/rsem.genes.norm_counts.tab
-    -: OK
-
-To process your own samples place a tar file per sample
-in samples/ consisting of two paired read fastq's with
-standard R1 R2 naming and then:
-
-    make run
-
-Intermediate files will be stores in outputs/ with the final
+Intermediate files will be stores in work/ with the final
 output named after the input filename with .gz on the end.
 A typical single sample running on a 16 core 120G server will
 take about 8 hours to process. Additional samples submitted

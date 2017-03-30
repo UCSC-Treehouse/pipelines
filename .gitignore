@@ -1,2 +1,3 @@
-/references/*.gz
-/references/*.idx
+references/*.gz
+references/*.idx
+work/
