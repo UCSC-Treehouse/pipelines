@@ -1,39 +1,84 @@
 # UCSC Treehouse Pipelines
 
-Makefiles to standardize running Treehouse pipelines at partner sites.
+Makefile to run pipelines used in Treehouse at partner sites on a single machine from the command
+line.
 
-# RNASeq 2.0.8
+## Requirements
 
-Requirments: Docker 1.12.1, 40G Memory, 100G Storage per Sample
+Docker 1.12.1 or greater
+50G Memory
+100G for reference files
+100G Storage per sample
 
-Install and Test:
+## Getting Started
+
+Clone this repository and then run 'make':
 
     git clone https://github.com/UCSC-Treehouse/pipelines.git
-    cd pipelines/rnaseq-cgl-pipeline
     make
 
-Reference files will be downloaded into inputs/, a test file
-processed and the output verified. After about 20 minutes
-you should see:
+References will be downloaded, verified via MD5, and then the included test file will be run through the pipelines and outputs verified. This will take approximately 15 minutes on a 16 core machine excluding reference file download time. At the end you should see:
 
-    TEST/RSEM/rsem.genes.norm_counts.tab
     -: OK
 
-To process your own samples place a tar file per sample
-in samples/ consisting of two paired read fastq's with
-standard R1 R2 naming and then:
+At this point you can replace the two test files under samples with your own and then:
 
-    make run
+    make expression
 
-Intermediate files will be stores in outputs/ with the final
-output named after the input filename with .gz on the end.
-A typical single sample running on a 16 core 120G server will
-take about 8 hours to process. Additional samples submitted
-at the same time will take a bit less.
+or
 
-See https://github.com/BD2KGenomics/toil-rnaseq for more details.
+    make fusion
 
-To run the docker interactively:
+Intermediate files will be stores in output/ with the final output named after the input filename with
+.gz on the end.  A typical single sample running just expression on a 16 core 120G server will take
+about 8 hours to process. Additional samples submitted at the same time will take a bit less. The
+Makefile has debugging turned on to facilitate any issues with getting the test files to process.
+After you are up and running change to --logInfo. In production these pipelines are run by the UCSC
+core via Dockstore (https://dockstore.org/containers/quay.io/ucsc_cgl/rnaseq-cgl-pipeline).
 
-    docker run -ti --entrypoint=/bin/bash quay.io/ucsc_cgl/rnaseq-cgl-pipeline:2.0.8 -s
+## Expression and BAM QC Outputs
 
+The output is a tar.gz file with a variety of results merged. If bamqc fails then 'FAIL.' will be
+prepended to the folder.
+
+    TEST_R1merged/RSEM/rsem_genes.results
+    TEST_R1merged/RSEM/rsem_isoforms.results
+    TEST_R1merged/RSEM/Hugo/rsem_genes.hugo.results
+    TEST_R1merged/RSEM/Hugo/rsem_isoforms.hugo.results
+    TEST_R1merged/Kallisto/run_info.json
+    TEST_R1merged/Kallisto/abundance.tsv
+    TEST_R1merged/Kallisto/abundance.h5
+    TEST_R1merged/QC/fastQC/R1_fastqc.html
+    TEST_R1merged/QC/fastQC/R1_fastqc.zip
+    TEST_R1merged/QC/fastQC/R2_fastqc.html
+    TEST_R1merged/QC/fastQC/R2_fastqc.zip
+    TEST_R1merged/QC/bamQC/readDist.txt
+    TEST_R1merged/QC/bamQC/rnaAligned.out.md.sorted.geneBodyCoverage.curves.pdf
+    TEST_R1merged/QC/bamQC/rnaAligned.out.md.sorted.geneBodyCoverage.txt
+    TEST_R1merged/QC/bamQC/readDist.txt_FAIL_qc.txt
+    TEST_R1merged/QC/STAR/Log.final.out
+    TEST_R1merged/QC/STAR/SJ.out.tab
+
+## Expression
+
+The expression pipeline with further calling details can be found here:
+
+    https://github.com/BD2KGenomics/toil-rnaseq
+
+## BAM QC
+
+The expression pipeline runs QC on the aligned bam.Details can be found here:
+
+    https://github.com/UCSC-Treehouse/bam_qc
+
+Remove --bamqc to turn off running bamqc
+
+## Fusion
+
+The fusion pipeline with further calling details can be found here:
+
+    https://github.com/UCSC-Treehouse/fusion
+
+## To run the docker interactively:
+
+    docker run -ti --entrypoint=/bin/bash quay.io/ucsc_cgl/rnaseq-cgl-pipeline:3.2.1-1 -s
