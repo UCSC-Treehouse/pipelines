@@ -1,12 +1,14 @@
 # UCSC Treehouse Pipelines
 
-Makefile to run pipelines used in Treehouse at partner sites
+Makefile to run pipelines used in Treehouse at partner sites on a single machine from the command
+line.
 
 ## Requirements
 
 Docker 1.12.1 or greater
 50G Memory
-100G Storage per Sample
+100G for reference files
+100G Storage per sample
 
 ## Getting Started
 
@@ -15,11 +17,11 @@ Clone this repository and then run 'make':
     git clone https://github.com/UCSC-Treehouse/pipelines.git
     make
 
-References will be downloaded, verified via MD5, and then included test file will be run through the pipelines and outputs verified. This will take approximately X minutes on a 16 core machine excluding reference file download time. At the end you should see:
+References will be downloaded, verified via MD5, and then the included test file will be run through the pipelines and outputs verified. This will take approximately 15 minutes on a 16 core machine excluding reference file download time. At the end you should see:
 
     -: OK
 
-At this point you can replace the test file under samples with your own and then:
+At this point you can replace the two test files under samples with your own and then:
 
     make expression
 
@@ -65,8 +67,7 @@ The expression pipeline with further calling details can be found here:
 
 ## BAM QC
 
-The makefile by default also runs a quality control pipeline on the aligned bam output of the
-expression pipeline. Details on this QC can be found here:
+The expression pipeline runs QC on the aligned bam.Details can be found here:
 
     https://github.com/UCSC-Treehouse/bam_qc
 
