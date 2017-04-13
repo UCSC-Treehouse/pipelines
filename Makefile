@@ -49,4 +49,4 @@ fusion:
 verify:
 	echo "Verifying md5 of output of test file (FAIL. is normal as its a small number of reads)"
 	tar -xOzvf outputs/TEST_R1merged.tar.gz FAIL.TEST_R1merged/RSEM/rsem_genes.results | md5sum -c md5/expression.md5
-	cat outputs/fusion/star-fusion.fusion_candidates.final | md5sum -c md5/fusion.md5
+	cut -f 1 outputs/fusion/star-fusion.fusion_candidates.final | sort | md5sum -c md5/fusion.md5
