@@ -3,15 +3,16 @@
 R1 = $(shell ls samples/*R1* | head -1)
 R2 = $(shell ls samples/*R2* | head -1)
 
-all: download expression fusion verify
+all: references expression fusion verify
 
-download:
+references:
 	echo "Downloading reference files..."
 	mkdir -p references
 	wget -N -P references http://hgdownload.soe.ucsc.edu/treehouse/reference/kallisto_hg38.idx
 	wget -N -P references http://hgdownload.soe.ucsc.edu/treehouse/reference/starIndex_hg38_no_alt.tar.gz
 	wget -N -P references http://hgdownload.soe.ucsc.edu/treehouse/reference/rsem_ref_hg38_no_alt.tar.gz
 	wget -N -P references http://hgdownload.soe.ucsc.edu/treehouse/reference/STARFusion-GRCh38gencode23.tar.gz
+	wget -N -P references http://ceph-gw-01.pod/references/GCA_000001405.15_GRCh38_no_alt_analysis_set.fa
 	md5sum -c md5/references.md5
 	echo "Unpacking fusion reference files..."
 	tar -zxsvf references/STARFusion-GRCh38gencode23.tar.gz -C references --skip-old-files
@@ -26,6 +27,7 @@ expression:
 		quay.io/ucsc_cgl/rnaseq-cgl-pipeline:3.2.1-1 \
 			--logDebug \
 			--bamqc \
+			--save-bam \
 			--star /references/starIndex_hg38_no_alt.tar.gz \
 			--rsem /references/rsem_ref_hg38_no_alt.tar.gz \
 			--kallisto /references/kallisto_hg38.idx \
@@ -45,6 +47,14 @@ fusion:
 			--CPU `nproc` \
 			--genome_lib_dir references/STARFusion-GRCh38gencode23 \
 			--run_fusion_inspector
+
+variants:
+	echo "Running rna variant calling on sorted bam from expression"
+	docker run --rm \
+		-v $(shell pwd)/references:/data/ref \
+		-v $(shell pwd)/outputs:/data/work \
+		-e refgenome=GCA_000001405.15_GRCh38_no_alt_analysis_set.fa \
+		-e input=TEST_R1merged.sortedByCoord.md.bam linhvoyo/gatk_rna_variant_v2
 
 verify:
 	echo "Verifying md5 of output of test file (FAIL. is normal as its a small number of reads)"
