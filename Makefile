@@ -3,19 +3,27 @@
 R1 = $(shell ls samples/*R1* | head -1)
 R2 = $(shell ls samples/*R2* | head -1)
 
-all: references expression fusion verify
+# REF_BASE = "http://hgdownload.soe.ucsc.edu/treehouse/reference"
+REF_BASE = "http://ceph-gw-01.pod/references"
 
-references:
+all: download expression fusion verify
+
+download:
 	echo "Downloading reference files..."
-	mkdir -p references
-	wget -N -P references http://hgdownload.soe.ucsc.edu/treehouse/reference/kallisto_hg38.idx
-	wget -N -P references http://hgdownload.soe.ucsc.edu/treehouse/reference/starIndex_hg38_no_alt.tar.gz
-	wget -N -P references http://hgdownload.soe.ucsc.edu/treehouse/reference/rsem_ref_hg38_no_alt.tar.gz
-	wget -N -P references http://hgdownload.soe.ucsc.edu/treehouse/reference/STARFusion-GRCh38gencode23.tar.gz
-	wget -N -P references http://ceph-gw-01.pod/references/GCA_000001405.15_GRCh38_no_alt_analysis_set.fa
-	md5sum -c md5/references.md5
-	echo "Unpacking fusion reference files..."
-	tar -zxsvf references/STARFusion-GRCh38gencode23.tar.gz -C references --skip-old-files
+	mkdir -p references samples outputs
+	wget -N -P references $(REF_BASE)/kallisto_hg38.idx
+	wget -N -P references $(REF_BASE)/starIndex_hg38_no_alt.tar.gz
+	wget -N -P references $(REF_BASE)/rsem_ref_hg38_no_alt.tar.gz
+	wget -N -P references $(REF_BASE)/STARFusion-GRCh38gencode23.tar.gz
+	wget -N -P references $(REF_BASE)/GCA_000001405.15_GRCh38_no_alt_analysis_set.dict
+	wget -N -P references $(REF_BASE)/GCA_000001405.15_GRCh38_no_alt_analysis_set.fa
+	wget -N -P references $(REF_BASE)/GCA_000001405.15_GRCh38_no_alt_analysis_set.fa.fai
+	echo "Verifying reference files..."
+	md5sum -c references.md5
+	if [ ! -d "references/STARFusion-GRCh38gencode23" ]; then \
+		echo "Unpacking fusion reference files..."; \
+		tar -zxsvf references/STARFusion-GRCh38gencode23.tar.gz -C references --skip-old-files; \
+	fi
 
 expression:
 	echo "Running expression and qc pipeline on $(R1) and $(R2)"
