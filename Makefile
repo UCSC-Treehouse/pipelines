@@ -2,13 +2,14 @@
 
 R1 = $(shell ls samples/*R1* | head -1)
 R2 = $(shell ls samples/*R2* | head -1)
+BAM = $(shell find outputs/*sortedByCoord*  -printf "%f\n")
 
 # REF_BASE = "http://hgdownload.soe.ucsc.edu/treehouse/reference"
 REF_BASE = "http://ceph-gw-01.pod/references"
 
-all: download expression fusion verify
+all: reference expression fusion variant verify
 
-download:
+reference:
 	echo "Downloading reference files..."
 	mkdir -p references samples outputs
 	wget -N -P references $(REF_BASE)/kallisto_hg38.idx
@@ -56,13 +57,13 @@ fusion:
 			--genome_lib_dir references/STARFusion-GRCh38gencode23 \
 			--run_fusion_inspector
 
-variants:
-	echo "Running rna variant calling on sorted bam from expression"
+variant:
+	echo "Running rna variant calling on sorted bam from expression WARNING: EXPERIMENTAL"
 	docker run --rm \
 		-v $(shell pwd)/references:/data/ref \
 		-v $(shell pwd)/outputs:/data/work \
 		-e refgenome=GCA_000001405.15_GRCh38_no_alt_analysis_set.fa \
-		-e input=TEST_R1merged.sortedByCoord.md.bam linhvoyo/gatk_rna_variant_v2
+		-e input=$(BAM) linhvoyo/gatk_rna_variant_v2
 
 verify:
 	echo "Verifying md5 of output of test file (FAIL. is normal as its a small number of reads)"

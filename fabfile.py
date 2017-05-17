@@ -81,6 +81,12 @@ def top():
     run("top -b -n 1 | head -n 12  | tail -n 3")
 
 
+def push():
+    """ Push Makefile convenience while iterating """
+    put("Makefile", "/mnt")
+
+
+@parallel
 def configure():
     """ Copy pipeline makefile over, make directories etc... """
     run("sudo gpasswd -a ubuntu docker")
@@ -96,23 +102,17 @@ def configure():
     run("sudo mount /mnt")
     run("sudo chmod 1777 /mnt")
 
-    # run("mkdir -p /mnt/data")
-    # run("sudo chown ubuntu:ubuntu /mnt/data")
-    # run("mkdir -p /mnt/data/references")
-    # run("mkdir -p /mnt/data/samples")
-    # run("mkdir -p /mnt/data/outputs")
-
-
-def push():
     put("Makefile", "/mnt")
-    put("references.md5", "/mnt")
+    run("mkdir -p /mnt/samples")
+    run("mkdir -p /mnt/outputs")
 
 
 @parallel
-def download():
+def reference():
     """ Configure each machine with reference files. """
+    put("references.md5", "/mnt")
     with cd("/mnt"):
-        run("make download")
+        run("make reference")
 
 
 def run_expression():
@@ -127,30 +127,25 @@ def run_fusion():
     return "jpfeil/star-fusion:0.0.2"
 
 
-def variants(bam):
-    run("""
-		docker run --rm --name variation \
-			-v /mnt/data:/data \
-			-v /mnt/data/outputs/rnavar:/data/work \
-			-e refgenome=references/GCA_000001405.15_GRCh38_no_alt_analysis_set.fa \
-            -v {}:/data/rnaAligned.sortedByCoord.out.bam \
-			-e input={} linhvoyo/gatk_rna_variant_v2
-        """.format(bam))
+def run_variant():
+    with cd("/mnt"):
+        run("make variant")
     return "linhvoyo/gatk_rna_variant_v2"
 
 
-def reset_machine():
+def reset():
     # Stop any existing processing and delete inputs and outputs
+    print("Resetting {}".format(env.host))
     with warn_only():
-        run("docker stop rnaseq && docker rm rnaseq")
-        run("docker stop fusion && docker rm fusion")
+        run("docker stop $(docker ps -a -q)")
+        run("docker rm $(docker ps -a -q)")
         sudo("rm -rf /mnt/samples/*")
         sudo("rm -rf /mnt/outputs/*")
 
 
 @parallel
 def process(manifest="manifest.tsv", outputs=".",
-            expression="True", variants="True", fusions="True", limit=None):
+            expression="True", variant="True", fusion="True", limit=None):
     """ Process on all the samples in 'manifest' """
 
     def log_error(message):
@@ -168,9 +163,9 @@ def process(manifest="manifest.tsv", outputs=".",
         sample_files = map(str.strip, sample["File Path"].split(","))
         print("{} processing {}".format(env.host, sample_id))
 
-        if os.path.exists("{}/{}".format(outputs, sample_id)):
-            log_error("{}/{} already exists".format(outputs, sample_id))
-            continue
+        # if os.path.exists("{}/{}".format(outputs, sample_id)):
+        #     log_error("{}/{} already exists".format(outputs, sample_id))
+        #     continue
 
         # See if all the files exist
         for sample in sample_files:
@@ -178,8 +173,7 @@ def process(manifest="manifest.tsv", outputs=".",
                 log_error("{} for {} does not exist".format(sample, sample_id))
                 continue
 
-        print("Resetting {}".format(env.host))
-        reset_machine()
+        reset()
 
         methods = {"user": os.environ["USER"],
                    "start": datetime.datetime.utcnow().isoformat(),
@@ -214,16 +208,18 @@ def process(manifest="manifest.tsv", outputs=".",
         if expression == "True":
             methods["pipelines"].append(run_expression())
 
-        if fusions == "True":
+        if fusion == "True":
             methods["pipelines"].append(run_fusion())
 
-        get("outputs", results)
+        if variant == "True":
+            methods["pipelines"].append(run_variant())
+
+        get("/mnt/outputs/*", results)
 
         # Write out methods
         methods["end"] = datetime.datetime.utcnow().isoformat()
         with open("{}/methods.json".format(results), "w") as f:
             f.write(json.dumps(methods, indent=4))
-
 
 @runs_once
 def check(manifest):
