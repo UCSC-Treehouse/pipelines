@@ -20,7 +20,7 @@ reference:
 	wget -N -P references $(REF_BASE)/GCA_000001405.15_GRCh38_no_alt_analysis_set.fa
 	wget -N -P references $(REF_BASE)/GCA_000001405.15_GRCh38_no_alt_analysis_set.fa.fai
 	echo "Verifying reference files..."
-	md5sum -c references.md5
+	md5sum -c md5/references.md5
 	if [ ! -d "references/STARFusion-GRCh38gencode23" ]; then \
 		echo "Unpacking fusion reference files..."; \
 		tar -zxsvf references/STARFusion-GRCh38gencode23.tar.gz -C references --skip-old-files; \

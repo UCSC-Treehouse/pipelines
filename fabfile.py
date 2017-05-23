@@ -11,9 +11,11 @@ Treehouse pipelines and files they use. YMMV.
 import os
 import re
 import datetime
+import dateutil.parser
 import csv
 import json
 import itertools
+import glob
 from fabric.api import env, local, run, sudo, runs_once, parallel, warn_only, cd
 from fabric.contrib.files import exists
 from fabric.operations import put, get
@@ -41,7 +43,7 @@ def up(count=1):
     """ Spin up 'count' docker machines """
     print("Spinning up {} more cluster machines".format(count))
     for i in range(int(count)):
-        hostname = "{}-{:%Y%m%d-%H%M%S}".format(os.environ["USER"],datetime.datetime.now())
+        hostname = "{}-treeshop-{:%Y%m%d-%H%M%S}".format(os.environ["USER"],datetime.datetime.now())
         local("""
             docker-machine create --driver openstack \
                 --openstack-tenant-name treehouse \
@@ -83,54 +85,35 @@ def top():
 
 def push():
     """ Push Makefile convenience while iterating """
-    put("Makefile", "/mnt")
+    put("{}/Makefile".format(os.path.dirname(env.real_fabfile)), "/mnt")
 
 
 @parallel
 def configure():
     """ Copy pipeline makefile over, make directories etc... """
-    run("sudo gpasswd -a ubuntu docker")
-    run("sudo apt-get -qy install make")
+    sudo("gpasswd -a ubuntu docker")
+    sudo("apt-get -qy install make")
 
     # openstack doesn't format /mnt correctly...
-    run("sudo umount /mnt")
-    run("sudo parted -s /dev/vdb mklabel gpt")
-    run("sudo parted -s /dev/vdb mkpart primary 2048s 100%")
-    run("sudo mkfs -t ext4 /dev/vdb1")
-    run("sudo sed -i 's/auto/ext4/' /etc/fstab")
-    run("sudo sed -i 's/vdb/vdb1/' /etc/fstab")
-    run("sudo mount /mnt")
-    run("sudo chmod 1777 /mnt")
+    sudo("umount /mnt")
+    sudo("parted -s /dev/vdb mklabel gpt")
+    sudo("parted -s /dev/vdb mkpart primary 2048s 100%")
+    sudo("mkfs -t ext4 /dev/vdb1")
+    sudo("sed -i 's/auto/ext4/' /etc/fstab")
+    sudo("sed -i 's/vdb/vdb1/' /etc/fstab")
+    sudo("mount /mnt")
+    sudo("chmod 1777 /mnt")
+    sudo("chown ubuntu:ubuntu /mnt")
 
-    put("Makefile", "/mnt")
-    run("mkdir -p /mnt/samples")
-    run("mkdir -p /mnt/outputs")
+    put("{}/Makefile".format(os.path.dirname(env.real_fabfile)), "/mnt")
 
 
 @parallel
 def reference():
     """ Configure each machine with reference files. """
-    put("references.md5", "/mnt")
+    put("{}/md5".format(os.path.dirname(env.real_fabfile)), "/mnt")
     with cd("/mnt"):
         run("make reference")
-
-
-def run_expression():
-    with cd("/mnt"):
-        run("make expression")
-    return "quay.io/ucsc_cgl/rnaseq-cgl-pipeline:3.2.1-1"
-
-
-def run_fusion():
-    with cd("/mnt"):
-        run("make fusion")
-    return "jpfeil/star-fusion:0.0.2"
-
-
-def run_variant():
-    with cd("/mnt"):
-        run("make variant")
-    return "linhvoyo/gatk_rna_variant_v2"
 
 
 def reset():
@@ -142,10 +125,13 @@ def reset():
         sudo("rm -rf /mnt/samples/*")
         sudo("rm -rf /mnt/outputs/*")
 
+        # Do we need this? Some pipeline looks like its changing it to root
+        sudo("chown -R ubuntu:ubuntu /mnt")
+
 
 @parallel
 def process(manifest="manifest.tsv", outputs=".",
-            expression="True", variant="True", fusion="True", limit=None):
+            expression="True", fusion="True", variant="False", limit=None):
     """ Process on all the samples in 'manifest' """
 
     def log_error(message):
@@ -163,16 +149,13 @@ def process(manifest="manifest.tsv", outputs=".",
         sample_files = map(str.strip, sample["File Path"].split(","))
         print("{} processing {}".format(env.host, sample_id))
 
-        # if os.path.exists("{}/{}".format(outputs, sample_id)):
-        #     log_error("{}/{} already exists".format(outputs, sample_id))
-        #     continue
-
         # See if all the files exist
         for sample in sample_files:
             if not os.path.isfile(sample):
                 log_error("{} for {} does not exist".format(sample, sample_id))
                 continue
 
+        # Reset machine clearing all output, samples, and killing dockers
         reset()
 
         methods = {"user": os.environ["USER"],
@@ -184,19 +167,28 @@ def process(manifest="manifest.tsv", outputs=".",
                    "pipelines": []}
 
         with cd("/mnt"):
-            # Copy fastqs, fixing r1/r2 for R1/R2 if needed
+            # Copy fastqs over to cluster machine
             if len(sample_files) != 2:
                 log_error("Expected 2 samples files {} {}".format(sample_id, sample_files))
                 continue
 
             for fastq in sample_files:
-                if not os.path.isfile(fastq):
-                    log_error("Unable to find file: {} {}".format(sample_id, fastq))
-                    continue
                 if not exists("samples/{}".format(os.path.basename(fastq))):
-                    print("Copying files....")
-                    put(fastq, "samples/{}".format(
-                        os.path.basename(fastq).replace("r1.", "R1.").replace("r2.", "R2.")))
+                    print("Copying file {} to cluster machine....".format(fastq))
+                    put(fastq, "samples/{}".format(os.path.basename(fastq)))
+
+            # Run the pipelines
+            if expression:
+                run("make expression")
+                methods["pipelines"].append("aquay.io/ucsc_cgl/rnaseq-cgl-pipeline:3.2.1-1")
+
+            if fusion:
+                run("make fusion")
+                methods["pipelines"].append("jpfeil/star-fusion:0.0.2")
+
+            if variant:
+                run("make variant")
+                methods["pipelines"].append("linhvoyo/gatk_rna_variant_v2")
 
         # Create folder on storage for results named after sample id
         # Wait until now in case something above fails so we don't have
@@ -204,25 +196,17 @@ def process(manifest="manifest.tsv", outputs=".",
         results = "{}/{}".format(outputs, sample_id)
         local("mkdir -p {}".format(results))
 
-        # rnaseq
-        if expression == "True":
-            methods["pipelines"].append(run_expression())
-
-        if fusion == "True":
-            methods["pipelines"].append(run_fusion())
-
-        if variant == "True":
-            methods["pipelines"].append(run_variant())
-
-        get("/mnt/outputs/*", results)
-
         # Write out methods
         methods["end"] = datetime.datetime.utcnow().isoformat()
         with open("{}/methods.json".format(results), "w") as f:
             f.write(json.dumps(methods, indent=4))
 
+        # Copy all the output files back
+        get("/mnt/outputs/*", results)
+
+
 @runs_once
-def check(manifest):
+def check(manifest="manifest.tsv"):
     """ Check that each file in manifest exists """
     for sample in csv.DictReader(open(manifest, "rU"), delimiter="\t"):
         sample_id = sample["Submitter Sample ID"]
@@ -235,6 +219,15 @@ def check(manifest):
                 continue
             else:
                 print("{} exists".format(sample))
+
+
+@runs_once
+def stats():
+    """ Print out stats for all the samples run in the current directory """
+    methods = [json.loads(open(m).read()) for m in glob.glob("**/methods.json")]
+    durations = [dateutil.parser.parse(m["end"])
+                 - dateutil.parser.parse(m["start"]) for m in methods]
+    print([d.total_seconds()/(60*60) for d in durations])
 
 
 def verify():
