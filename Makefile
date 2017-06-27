@@ -33,7 +33,7 @@ expression:
 		-v $(shell pwd)/samples:/samples \
 		-v $(shell pwd)/references:/references \
 		-v /var/run/docker.sock:/var/run/docker.sock \
-		quay.io/ucsc_cgl/rnaseq-cgl-pipeline:3.2.1-1 \
+		quay.io/ucsc_cgl/rnaseq-cgl-pipeline:3.3.4-1.12.3 \
 			--logDebug \
 			--bamqc \
 			--save-bam \
