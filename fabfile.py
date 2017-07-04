@@ -180,7 +180,7 @@ def process(manifest="manifest.tsv", outputs=".",
             # Run the pipelines
             if expression:
                 run("make expression")
-                methods["pipelines"].append("aquay.io/ucsc_cgl/rnaseq-cgl-pipeline:3.2.1-1")
+                methods["pipelines"].append("quay.io/ucsc_cgl/rnaseq-cgl-pipeline:3.2.1-1")
 
             if fusion:
                 run("make fusion")
