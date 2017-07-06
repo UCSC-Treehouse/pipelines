@@ -178,15 +178,15 @@ def process(manifest="manifest.tsv", outputs=".",
                     put(fastq, "samples/{}".format(os.path.basename(fastq)))
 
             # Run the pipelines
-            if expression:
+            if expression == "True":
                 run("make expression")
-                methods["pipelines"].append("quay.io/ucsc_cgl/rnaseq-cgl-pipeline:3.2.1-1")
+                methods["pipelines"].append("quay.io/ucsc_cgl/rnaseq-cgl-pipeline:3.3.4-1.12.3")
 
-            if fusion:
+            if fusion == "True":
                 run("make fusion")
                 methods["pipelines"].append("jpfeil/star-fusion:0.0.2")
 
-            if variant:
+            if variant == "True":
                 run("make variant")
                 methods["pipelines"].append("linhvoyo/gatk_rna_variant_v2")
 
