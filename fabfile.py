@@ -225,9 +225,11 @@ def check(manifest="manifest.tsv"):
 def stats():
     """ Print out stats for all the samples run in the current directory """
     methods = [json.loads(open(m).read()) for m in glob.glob("**/methods.json")]
-    durations = [dateutil.parser.parse(m["end"])
-                 - dateutil.parser.parse(m["start"]) for m in methods]
-    print([d.total_seconds()/(60*60) for d in durations])
+    durations = [(dateutil.parser.parse(m["end"])
+                 - dateutil.parser.parse(m["start"])).total_seconds()/(60*60) for m in methods]
+    print("Per sample Runtimes: ", [d for d in durations])
+    print("Average/Min/Max Runtime: {}/{}/{}".format(
+        sum(durations) / len(durations), min(durations), max(durations)))
 
 
 def verify():
