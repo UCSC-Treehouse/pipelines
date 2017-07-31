@@ -184,7 +184,7 @@ def process(manifest="manifest.tsv", outputs=".",
 
             if fusion == "True":
                 run("make fusion")
-                methods["pipelines"].append("jpfeil/star-fusion:0.0.2")
+                methods["pipelines"].append("ucsctreehouse/fusion:0.1.0")
 
             if variant == "True":
                 run("make variant")

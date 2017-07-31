@@ -49,7 +49,7 @@ fusion:
 		-v $(shell pwd)/outputs:/data/outputs \
 		-v $(shell pwd)/samples:/data/samples \
 		-v $(shell pwd)/references:/data/references \
-        jpfeil/star-fusion:0.0.2 \
+    ucsctreehouse/fusion:0.1.0 \ 
 			--left_fq $(R1) \
 			--right_fq $(R2) \
 			--output_dir outputs/fusion \
