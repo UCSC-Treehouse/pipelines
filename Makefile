@@ -45,17 +45,18 @@ expression:
 
 fusion:
 	echo "Running fusion pipeline on $(R1) and $(R2)"
+	mkdir -p outputs/fusion
 	docker run --rm \
 		-v $(shell pwd)/outputs:/data/outputs \
 		-v $(shell pwd)/samples:/data/samples \
 		-v $(shell pwd)/references:/data/references \
-    ucsctreehouse/fusion:0.1.0 \ 
-			--left_fq $(R1) \
-			--right_fq $(R2) \
-			--output_dir outputs/fusion \
+		ucsctreehouse/fusion:0.1.0 \
+			--left-fq $(R1) \
+			--right-fq $(R2) \
+			--output-dir outputs/fusion \
 			--CPU `nproc` \
-			--genome_lib_dir references/STARFusion-GRCh38gencode23 \
-			--run_fusion_inspector
+			--genome-lib-dir references/STARFusion-GRCh38gencode23 \
+			--run-fusion-inspector
 
 variant:
 	echo "Running rna variant calling on sorted bam from expression WARNING: EXPERIMENTAL"
@@ -68,4 +69,4 @@ variant:
 verify:
 	echo "Verifying md5 of output of test file (FAIL. is normal as its a small number of reads)"
 	tar -xOzvf outputs/TEST_R1merged.tar.gz FAIL.TEST_R1merged/RSEM/rsem_genes.results | md5sum -c md5/expression.md5
-	cut -f 1 outputs/fusion/star-fusion.fusion_candidates.final | sort | md5sum -c md5/fusion.md5
+	cut -f 1 outputs/fusion/star-fusion-non-filtered.final | sort | md5sum -c md5/fusion.md5
