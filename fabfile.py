@@ -25,6 +25,8 @@ Setup the fabric hosts environment using docker-machine ip addresses as hostname
 resolvable. Also point to all the per machine ssh keys. An alternative would be to use one key but
 on openstack the driver deletes it on termination.
 """
+
+
 def find_machines():
     """ Fill in host globals from docker-machine """
     env.user = "ubuntu"
@@ -35,6 +37,7 @@ def find_machines():
                                  capture=True))
     env.key_filename = ["~/.docker/machine/machines/{}/id_rsa".format(m) for m in env.hostnames]
 
+
 find_machines()
 
 
@@ -43,17 +46,18 @@ def up(count=1):
     """ Spin up 'count' docker machines """
     print("Spinning up {} more cluster machines".format(count))
     for i in range(int(count)):
-        hostname = "{}-treeshop-{:%Y%m%d-%H%M%S}".format(os.environ["USER"],datetime.datetime.now())
+        hostname = "{}-treeshop-{:%Y%m%d-%H%M%S}".format(
+            os.environ["USER"], datetime.datetime.now())
         local("""
-            docker-machine create --driver openstack \
-                --openstack-tenant-name treehouse \
-                --openstack-auth-url http://os-con-01.pod:5000/v2.0 \
-                --openstack-ssh-user ubuntu \
-                --openstack-net-name treehouse-net \
-                --openstack-floatingip-pool ext-net \
-                --openstack-image-name Ubuntu-16.04-LTS-x86_64 \
-                --openstack-flavor-name z1.medium \
-                {}
+              docker-machine create --driver openstack \
+              --openstack-tenant-name treehouse \
+              --openstack-auth-url http://os-con-01.pod:5000/v2.0 \
+              --openstack-ssh-user ubuntu \
+              --openstack-net-name treehouse-net \
+              --openstack-floatingip-pool ext-net \
+              --openstack-image-name Ubuntu-16.04-LTS-x86_64 \
+              --openstack-flavor-name z1.medium \
+              {}
               """.format(hostname))
 
     # In case additional commands are called after up
@@ -158,13 +162,14 @@ def process(manifest="manifest.tsv", outputs=".",
         # Reset machine clearing all output, samples, and killing dockers
         reset()
 
-        methods = {"user": os.environ["USER"],
-                   "start": datetime.datetime.utcnow().isoformat(),
-                   "treeshop_version": local(
-                       "git --work-tree={0} --git-dir {0}/.git describe --always".format(
-                           os.path.dirname(__file__)), capture=True),
-                   "inputs": sample_files,
-                   "pipelines": []}
+        provenance = {"user": os.environ["USER"],
+                      "start": datetime.datetime.utcnow().isoformat(),
+                      "treeshop_version": local(
+                          "git --work-tree={0} --git-dir {0}/.git describe --always".format(
+                              os.path.dirname(__file__)), capture=True),
+                      "sample_id": sample_id,
+                      "inputs": sample_files,
+                      "pipelines": []}
 
         with cd("/mnt"):
             # Copy fastqs over to cluster machine
@@ -180,26 +185,27 @@ def process(manifest="manifest.tsv", outputs=".",
             # Run the pipelines
             if expression == "True":
                 run("make expression")
-                methods["pipelines"].append("quay.io/ucsc_cgl/rnaseq-cgl-pipeline:3.3.4-1.12.3")
+                provenance["pipelines"].append("quay.io/ucsc_cgl/rnaseq-cgl-pipeline:3.3.4-1.12.3")
 
             if fusion == "True":
                 run("make fusion")
-                methods["pipelines"].append("ucsctreehouse/fusion:0.1.0")
+                provenance["pipelines"].append("ucsctreehouse/fusion:0.1.0")
 
             if variant == "True":
                 run("make variant")
-                methods["pipelines"].append("linhvoyo/gatk_rna_variant_v2")
+                provenance["pipelines"].append("linhvoyo/gatk_rna_variant_v2")
 
         # Create folder on storage for results named after sample id
         # Wait until now in case something above fails so we don't have
         # an empty directory
         results = "{}/{}".format(outputs, sample_id)
+        provenance["outputs"] = results
         local("mkdir -p {}".format(results))
 
-        # Write out methods
-        methods["end"] = datetime.datetime.utcnow().isoformat()
-        with open("{}/methods.json".format(results), "w") as f:
-            f.write(json.dumps(methods, indent=4))
+        # Write out provenance
+        provenance["end"] = datetime.datetime.utcnow().isoformat()
+        with open("{}/provenance.json".format(results), "w") as f:
+            f.write(json.dumps(provenance, indent=4))
 
         # Copy all the output files back
         get("/mnt/outputs/*", results)
@@ -215,6 +221,7 @@ def check(manifest="manifest.tsv"):
         # See if all the files exist
         if sample_files[0] == sample_files[1]:
             print("WARNING: {} has same file listed for each pair".format(sample_id))
+
         for sample in sample_files:
             if not os.path.isfile(sample):
                 print("WARNING: {} for {} does not exist".format(sample, sample_id))
@@ -226,16 +233,9 @@ def check(manifest="manifest.tsv"):
 @runs_once
 def stats():
     """ Print out stats for all the samples run in the current directory """
-    methods = [json.loads(open(m).read()) for m in glob.glob("**/methods.json")]
-    durations = [(dateutil.parser.parse(m["end"])
-                 - dateutil.parser.parse(m["start"])).total_seconds()/(60*60) for m in methods]
+    provenance = [json.loads(open(m).read()) for m in glob.glob("**/provenance.json")]
+    durations = [(dateutil.parser.parse(p["end"])
+                  - dateutil.parser.parse(p["start"])).total_seconds()/(60*60) for p in provenance]
     print("Per sample Runtimes: ", [d for d in durations])
     print("Average/Min/Max Runtime: {}/{}/{}".format(
         sum(durations) / len(durations), min(durations), max(durations)))
-
-
-def verify():
-    # Verify md5 of rnaseq output from TEST samples
-    with cd("/mnt/data/outputs"):
-        put("TEST.md5", "/mnt/data/outputs")
-        run("md5sum -c TEST.md5")

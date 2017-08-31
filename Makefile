@@ -7,7 +7,7 @@ BAM = $(shell find outputs/*sortedByCoord*  -printf "%f\n")
 # REF_BASE = "http://hgdownload.soe.ucsc.edu/treehouse/reference"
 REF_BASE ?= "http://ceph-gw-01.pod/references"
 
-all: reference expression fusion variant verify
+all: reference expression fusions verify
 
 reference:
 	echo "Downloading reference files..."
@@ -42,10 +42,13 @@ expression:
 			--kallisto /references/kallisto_hg38.idx \
 			--work_mount $(shell pwd)/outputs \
 			--sample-paired $(R1),$(R2)
+	mkdir -p outputs/expression
+	tar -C outputs/expression -xzf outputs/*.tar.gz --strip 1
+	rm outputs/*.tar.gz
 
-fusion:
+fusions:
 	echo "Running fusion pipeline on $(R1) and $(R2)"
-	mkdir -p outputs/fusion
+	mkdir -p outputs/fusions
 	docker run --rm \
 		-v $(shell pwd)/outputs:/data/outputs \
 		-v $(shell pwd)/samples:/data/samples \
@@ -53,13 +56,14 @@ fusion:
 		ucsctreehouse/fusion:0.1.0 \
 			--left-fq $(R1) \
 			--right-fq $(R2) \
-			--output-dir outputs/fusion \
+			--output-dir outputs/fusions \
 			--CPU `nproc` \
 			--genome-lib-dir references/STARFusion-GRCh38gencode23 \
 			--run-fusion-inspector
 
-variant:
+variants:
 	echo "Running rna variant calling on sorted bam from expression WARNING: EXPERIMENTAL"
+	mkdir -p outputs/variants
 	docker run --rm \
 		-v $(shell pwd)/references:/data/ref \
 		-v $(shell pwd)/outputs:/data/work \
