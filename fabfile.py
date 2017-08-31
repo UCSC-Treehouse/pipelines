@@ -213,9 +213,11 @@ def check(manifest="manifest.tsv"):
         sample_files = map(str.strip, sample["File Path"].split(","))
 
         # See if all the files exist
+        if sample_files[0] == sample_files[1]:
+            print("WARNING: {} has same file listed for each pair".format(sample_id))
         for sample in sample_files:
             if not os.path.isfile(sample):
-                print("{} for {} does not exist".format(sample, sample_id))
+                print("WARNING: {} for {} does not exist".format(sample, sample_id))
                 continue
             else:
                 print("{} exists".format(sample))

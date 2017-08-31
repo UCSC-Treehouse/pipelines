@@ -5,7 +5,7 @@ R2 = $(shell ls samples/*R2* | head -1)
 BAM = $(shell find outputs/*sortedByCoord*  -printf "%f\n")
 
 # REF_BASE = "http://hgdownload.soe.ucsc.edu/treehouse/reference"
-REF_BASE = "http://ceph-gw-01.pod/references"
+REF_BASE ?= "http://ceph-gw-01.pod/references"
 
 all: reference expression fusion variant verify
 
