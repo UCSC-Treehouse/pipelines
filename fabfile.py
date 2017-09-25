@@ -109,6 +109,12 @@ def configure():
     sudo("chmod 1777 /mnt")
     sudo("chown ubuntu:ubuntu /mnt")
 
+    """ Downgrade docker to version supported by toil """
+    run("wget https://packages.docker.com/1.12/apt/repo/pool/main/d/docker-engine/docker-engine_1.12.6~cs8-0~ubuntu-xenial_amd64.deb")
+    sudo("apt-get -y remove docker docker-engine docker.io docker-ce")
+    sudo("rm -rf /var/lib/docker")
+    sudo("dpkg -i docker-engine_1.12.6~cs8-0~ubuntu-xenial_amd64.deb")
+
     put("{}/Makefile".format(os.path.dirname(env.real_fabfile)), "/mnt")
 
 
@@ -162,14 +168,18 @@ def process(manifest="manifest.tsv", outputs=".",
         # Reset machine clearing all output, samples, and killing dockers
         reset()
 
-        provenance = {"user": os.environ["USER"],
-                      "start": datetime.datetime.utcnow().isoformat(),
-                      "treeshop_version": local(
-                          "git --work-tree={0} --git-dir {0}/.git describe --always".format(
-                              os.path.dirname(__file__)), capture=True),
-                      "sample_id": sample_id,
-                      "inputs": sample_files,
-                      "pipelines": []}
+        methods = {"user": os.environ["USER"],
+                   "treeshop_version": local(
+                      "git --work-tree={0} --git-dir {0}/.git describe --always".format(
+                          os.path.dirname(__file__)), capture=True),
+                   "sample_id": sample_id,
+                   "inputs": sample_files}
+
+        # Create folder on storage for results named after sample id
+        # Wait until now in case something above fails so we don't have
+        # an empty directory
+        results = "{}/{}".format(outputs, sample_id)
+        local("mkdir -p {}".format(results))
 
         with cd("/mnt"):
             # Copy fastqs over to cluster machine
@@ -177,38 +187,34 @@ def process(manifest="manifest.tsv", outputs=".",
                 log_error("Expected 2 samples files {} {}".format(sample_id, sample_files))
                 continue
 
+            run("mkdir -p /mnt/samples")
             for fastq in sample_files:
                 if not exists("samples/{}".format(os.path.basename(fastq))):
                     print("Copying file {} to cluster machine....".format(fastq))
                     put(fastq, "samples/{}".format(os.path.basename(fastq)))
 
-            # Run the pipelines
+            # Run the pipelines, backhaul results, write methods.json
             if expression == "True":
+                methods["start"] = datetime.datetime.utcnow().isoformat()
                 run("make expression")
-                provenance["pipelines"].append("quay.io/ucsc_cgl/rnaseq-cgl-pipeline:3.3.4-1.12.3")
+                methods["outputs"] = get("/mnt/outputs/expression", results)
+                methods["end"] = datetime.datetime.utcnow().isoformat()
+                methods["pipeline"] = "quay.io/ucsc_cgl/rnaseq-cgl-pipeline:3.3.4-1.12.3"
+                with open("{}/expression/methods.json".format(results), "w") as f:
+                    f.write(json.dumps(methods, indent=4))
 
             if fusion == "True":
-                run("make fusion")
-                provenance["pipelines"].append("ucsctreehouse/fusion:0.1.0")
+                methods["start"] = datetime.datetime.utcnow().isoformat()
+                run("make fusions")
+                methods["outputs"] = get("/mnt/outputs/fusions", results)
+                methods["end"] = datetime.datetime.utcnow().isoformat()
+                methods["pipeline"] = "ucsctreehouse/fusion:0.1.0"
+                with open("{}/fusions/methods.json".format(results), "w") as f:
+                    f.write(json.dumps(methods, indent=4))
 
-            if variant == "True":
-                run("make variant")
-                provenance["pipelines"].append("linhvoyo/gatk_rna_variant_v2")
-
-        # Create folder on storage for results named after sample id
-        # Wait until now in case something above fails so we don't have
-        # an empty directory
-        results = "{}/{}".format(outputs, sample_id)
-        provenance["outputs"] = results
-        local("mkdir -p {}".format(results))
-
-        # Write out provenance
-        provenance["end"] = datetime.datetime.utcnow().isoformat()
-        with open("{}/provenance.json".format(results), "w") as f:
-            f.write(json.dumps(provenance, indent=4))
-
-        # Copy all the output files back
-        get("/mnt/outputs/*", results)
+            # if variant == "True":
+            #     run("make variant")
+                # methods["pipelines"].append("linhvoyo/gatk_rna_variant_v2")
 
 
 @runs_once
@@ -233,9 +239,9 @@ def check(manifest="manifest.tsv"):
 @runs_once
 def stats():
     """ Print out stats for all the samples run in the current directory """
-    provenance = [json.loads(open(m).read()) for m in glob.glob("**/provenance.json")]
-    durations = [(dateutil.parser.parse(p["end"])
-                  - dateutil.parser.parse(p["start"])).total_seconds()/(60*60) for p in provenance]
+    methods = [json.loads(open(m).read()) for m in glob.glob("**/methods.json")]
+    durations = [(dateutil.parser.parse(m["end"])
+                  - dateutil.parser.parse(m["start"])).total_seconds()/(60*60) for m in methods]
     print("Per sample Runtimes: ", [d for d in durations])
     print("Average/Min/Max Runtime: {}/{}/{}".format(
         sum(durations) / len(durations), min(durations), max(durations)))

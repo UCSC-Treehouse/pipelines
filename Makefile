@@ -1,17 +1,18 @@
 # Simple command line running of pipelines used in Treehouse
+#
+# Generates expression, fusions, and variants folders in outputs
 
 R1 = $(shell ls samples/*R1* | head -1)
 R2 = $(shell ls samples/*R2* | head -1)
-BAM = $(shell find outputs/*sortedByCoord*  -printf "%f\n")
 
-# REF_BASE = "http://hgdownload.soe.ucsc.edu/treehouse/reference"
 REF_BASE ?= "http://ceph-gw-01.pod/references"
+# REF_BASE ?= "http://hgdownload.soe.ucsc.edu/treehouse/reference"
 
 all: reference expression fusions verify
 
 reference:
 	echo "Downloading reference files..."
-	mkdir -p references samples outputs
+	mkdir -p references
 	wget -N -P references $(REF_BASE)/kallisto_hg38.idx
 	wget -N -P references $(REF_BASE)/starIndex_hg38_no_alt.tar.gz
 	wget -N -P references $(REF_BASE)/rsem_ref_hg38_no_alt.tar.gz
@@ -28,8 +29,9 @@ reference:
 
 expression:
 	echo "Running expression and qc pipeline on $(R1) and $(R2)"
+	mkdir -p outputs/expression
 	docker run --rm \
-		-v $(shell pwd)/outputs:$(shell pwd)/outputs \
+		-v $(shell pwd)/outputs/expression:$(shell pwd)/outputs/expression \
 		-v $(shell pwd)/samples:/samples \
 		-v $(shell pwd)/references:/references \
 		-v /var/run/docker.sock:/var/run/docker.sock \
@@ -40,11 +42,8 @@ expression:
 			--star /references/starIndex_hg38_no_alt.tar.gz \
 			--rsem /references/rsem_ref_hg38_no_alt.tar.gz \
 			--kallisto /references/kallisto_hg38.idx \
-			--work_mount $(shell pwd)/outputs \
+			--work_mount $(shell pwd)/outputs/expression \
 			--sample-paired $(R1),$(R2)
-	mkdir -p outputs/expression
-	tar -C outputs/expression -xzf outputs/*.tar.gz --strip 1
-	rm outputs/*.tar.gz
 
 fusions:
 	echo "Running fusion pipeline on $(R1) and $(R2)"
@@ -66,9 +65,12 @@ variants:
 	mkdir -p outputs/variants
 	docker run --rm \
 		-v $(shell pwd)/references:/data/ref \
-		-v $(shell pwd)/outputs:/data/work \
+		-v $(shell pwd)/outputs/variants:/data/work \
+	  -v `pwd`/$(shell find outputs/expression/*sortedByCoord*):/data/work/sorted.bam \
 		-e refgenome=GCA_000001405.15_GRCh38_no_alt_analysis_set.fa \
-		-e input=$(BAM) linhvoyo/gatk_rna_variant_v2
+		-e input=sorted.bam \
+		linhvoyo/gatk_rna_variant_v2
+
 
 verify:
 	echo "Verifying md5 of output of test file (FAIL. is normal as its a small number of reads)"
