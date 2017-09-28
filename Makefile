@@ -64,13 +64,12 @@ variants:
 	echo "Running rna variant calling on sorted bam from expression WARNING: EXPERIMENTAL"
 	mkdir -p outputs/variants
 	docker run --rm \
-		-v $(shell pwd)/references:/data/ref \
-		-v $(shell pwd)/outputs/variants:/data/work \
-	  -v `pwd`/$(shell find outputs/expression/*sortedByCoord*):/data/work/sorted.bam \
-		-e refgenome=GCA_000001405.15_GRCh38_no_alt_analysis_set.fa \
-		-e input=sorted.bam \
-		linhvoyo/gatk_rna_variant_v2
-
+		-v $(shell pwd)/references:/references \
+		-v $(shell pwd)/outputs/variants:/outputs \
+	  -v `pwd`/$(shell find outputs/expression/*sortedByCoord*):/sorted.bam \
+		ucsctreehouse/mini_var_call \
+			/sorted.bam \
+			/references/GCA_000001405.15_GRCh38_no_alt_analysis_set.fa
 
 verify:
 	echo "Verifying md5 of output of test file (FAIL. is normal as its a small number of reads)"
