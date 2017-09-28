@@ -110,7 +110,7 @@ def configure():
     sudo("chown ubuntu:ubuntu /mnt")
 
     """ Downgrade docker to version supported by toil """
-    run("wget https://packages.docker.com/1.12/apt/repo/pool/main/d/docker-engine/docker-engine_1.12.6~cs8-0~ubuntu-xenial_amd64.deb")
+    run("wget https://packages.docker.com/1.12/apt/repo/pool/main/d/docker-engine/docker-engine_1.12.6~cs8-0~ubuntu-xenial_amd64.deb")  # NOQA
     sudo("apt-get -y remove docker docker-engine docker.io docker-ce")
     sudo("rm -rf /var/lib/docker")
     sudo("dpkg -i docker-engine_1.12.6~cs8-0~ubuntu-xenial_amd64.deb")
@@ -141,7 +141,7 @@ def reset():
 
 @parallel
 def process(manifest="manifest.tsv", outputs=".",
-            expression="True", fusion="True", variant="False", limit=None):
+            expression="True", fusions="True", variants="True", limit=None):
     """ Process on all the samples in 'manifest' """
 
     def log_error(message):
@@ -199,22 +199,27 @@ def process(manifest="manifest.tsv", outputs=".",
                 run("make expression")
                 methods["outputs"] = get("/mnt/outputs/expression", results)
                 methods["end"] = datetime.datetime.utcnow().isoformat()
-                methods["pipeline"] = "quay.io/ucsc_cgl/rnaseq-cgl-pipeline:3.3.4-1.12.3"
+                methods["pipeline"] = "quay.io/ucsc_cgl/rnaseq-cgl-pipeline@sha256:785eee9f750ab91078d84d1ee779b6f74717eafc09e49da817af6b87619b0756"  # NOQA
                 with open("{}/expression/methods.json".format(results), "w") as f:
                     f.write(json.dumps(methods, indent=4))
 
-            if fusion == "True":
+            if fusions == "True":
                 methods["start"] = datetime.datetime.utcnow().isoformat()
                 run("make fusions")
                 methods["outputs"] = get("/mnt/outputs/fusions", results)
                 methods["end"] = datetime.datetime.utcnow().isoformat()
-                methods["pipeline"] = "ucsctreehouse/fusion:0.1.0"
+                methods["pipeline"] = "ucsctreehouse/fusion@sha256:3faac562666363fa4a80303943a8f5c14854a5f458676e1248a956c13fb534fd"   # NOQA
                 with open("{}/fusions/methods.json".format(results), "w") as f:
                     f.write(json.dumps(methods, indent=4))
 
-            # if variant == "True":
-            #     run("make variant")
-                # methods["pipelines"].append("linhvoyo/gatk_rna_variant_v2")
+            if variants == "True":
+                methods["start"] = datetime.datetime.utcnow().isoformat()
+                run("make variants")
+                methods["outputs"] = get("/mnt/outputs/variants", results)
+                methods["end"] = datetime.datetime.utcnow().isoformat()
+                methods["pipeline"] = "ucsctreehouse/mini_var_call@sha256:710bf50c9f705cd4f1d47d7e2d6b602481dd7213da85e7fd77603af38fb9544a"  # NOQA
+                with open("{}/variants/methods.json".format(results), "w") as f:
+                    f.write(json.dumps(methods, indent=4))
 
 
 @runs_once

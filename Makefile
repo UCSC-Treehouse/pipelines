@@ -35,7 +35,7 @@ expression:
 		-v $(shell pwd)/samples:/samples \
 		-v $(shell pwd)/references:/references \
 		-v /var/run/docker.sock:/var/run/docker.sock \
-		quay.io/ucsc_cgl/rnaseq-cgl-pipeline:3.3.4-1.12.3 \
+		quay.io/ucsc_cgl/rnaseq-cgl-pipeline@sha256:785eee9f750ab91078d84d1ee779b6f74717eafc09e49da817af6b87619b0756 \
 			--logDebug \
 			--bamqc \
 			--save-bam \
@@ -52,7 +52,7 @@ fusions:
 		-v $(shell pwd)/outputs:/data/outputs \
 		-v $(shell pwd)/samples:/data/samples \
 		-v $(shell pwd)/references:/data/references \
-		ucsctreehouse/fusion:0.1.0 \
+		ucsctreehouse/fusion@sha256:3faac562666363fa4a80303943a8f5c14854a5f458676e1248a956c13fb534fd \
 			--left-fq $(R1) \
 			--right-fq $(R2) \
 			--output-dir outputs/fusions \
@@ -67,7 +67,7 @@ variants:
 		-v $(shell pwd)/references:/references \
 		-v $(shell pwd)/outputs/variants:/outputs \
 	  -v `pwd`/$(shell find outputs/expression/*sortedByCoord*):/sorted.bam \
-		ucsctreehouse/mini_var_call \
+		ucsctreehouse/mini_var_call@sha256:710bf50c9f705cd4f1d47d7e2d6b602481dd7213da85e7fd77603af38fb9544a \
 			/sorted.bam \
 			/references/GCA_000001405.15_GRCh38_no_alt_analysis_set.fa
 
