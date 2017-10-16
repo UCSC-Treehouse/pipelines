@@ -65,11 +65,12 @@ variants:
 	mkdir -p outputs/variants
 	docker run --rm \
 		-v $(shell pwd)/references:/references \
+	  -v `pwd`/$(shell find outputs/expression/*sortedByCoord*):/inputs/sample.bam \
 		-v $(shell pwd)/outputs/variants:/outputs \
-	  -v `pwd`/$(shell find outputs/expression/*sortedByCoord*):/sorted.bam \
-		ucsctreehouse/mini_var_call@sha256:710bf50c9f705cd4f1d47d7e2d6b602481dd7213da85e7fd77603af38fb9544a \
-			/sorted.bam \
-			/references/GCA_000001405.15_GRCh38_no_alt_analysis_set.fa
+		ucsctreehouse/mini-var-call@sha256:969dd68de680a988ce4f86c46eed9de6d0bd13cb71f7294a5e16aa8928bcd2b4 \
+			/references/GCA_000001405.15_GRCh38_no_alt_analysis_set.fa \
+			/inputs/sample.bam \
+			/outputs
 
 verify:
 	echo "Verifying md5 of output of test file (FAIL. is normal as its a small number of reads)"

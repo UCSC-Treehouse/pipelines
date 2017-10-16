@@ -15,7 +15,7 @@ import dateutil.parser
 import csv
 import json
 import itertools
-import glob
+import fnmatch
 from fabric.api import env, local, run, sudo, runs_once, parallel, warn_only, cd
 from fabric.contrib.files import exists
 from fabric.operations import put, get
@@ -188,15 +188,21 @@ def process(manifest="manifest.tsv", outputs=".",
                 continue
 
             run("mkdir -p /mnt/samples")
-            for fastq in sample_files:
-                if not exists("samples/{}".format(os.path.basename(fastq))):
-                    print("Copying file {} to cluster machine....".format(fastq))
-                    put(fastq, "samples/{}".format(os.path.basename(fastq)))
+            if expression == "True" or fusions == "True":
+                for fastq in sample_files:
+                    if not exists("samples/{}".format(os.path.basename(fastq))):
+                        print("Copying file {} to cluster machine....".format(fastq))
+                        put(fastq, "samples/{}".format(os.path.basename(fastq)))
 
             # Run the pipelines, backhaul results, write methods.json
             if expression == "True":
                 methods["start"] = datetime.datetime.utcnow().isoformat()
                 run("make expression")
+                # Unpack outputs and normalize names so we don't have sample id in them
+                with cd("/mnt/outputs/expression"):
+                    run("tar -xvf *.tar.gz --strip 1")
+                    run("rm *.tar.gz")
+                    run("mv *.sortedByCoord.md.bam sortedByCoord.md.bam")
                 methods["outputs"] = get("/mnt/outputs/expression", results)
                 methods["end"] = datetime.datetime.utcnow().isoformat()
                 methods["pipeline"] = "quay.io/ucsc_cgl/rnaseq-cgl-pipeline@sha256:785eee9f750ab91078d84d1ee779b6f74717eafc09e49da817af6b87619b0756"  # NOQA
@@ -213,11 +219,22 @@ def process(manifest="manifest.tsv", outputs=".",
                     f.write(json.dumps(methods, indent=4))
 
             if variants == "True":
+                # local_bam = "{}/expression/{}.sortedByCoord.md.bam".format(results, sample_id)
+                # remote_bam = "outputs/expression/{}.sortedByCoord.md.bam".format(sample_id)
+                # print("bams:", local_bam, remote_bam)
+                # if not exists(remote_bam) and os.path.isfile(local_bam):
+                #     print("Pushing bam")
+                #     run("mkdir -p /mnt/outputs/expression")
+                #     put(local_bam, remote_bam)
+                # else:
+                #     print("ERROR: Missing BAM: {}".format(local_bam))
+                #     return
                 methods["start"] = datetime.datetime.utcnow().isoformat()
                 run("make variants")
+                local("mkdir -p {}/variants".format(results))
                 methods["outputs"] = get("/mnt/outputs/variants", results)
                 methods["end"] = datetime.datetime.utcnow().isoformat()
-                methods["pipeline"] = "ucsctreehouse/mini_var_call@sha256:710bf50c9f705cd4f1d47d7e2d6b602481dd7213da85e7fd77603af38fb9544a"  # NOQA
+                methods["pipeline"] = "ucsctreehouse/mini-var-call@sha256:969dd68de680a988ce4f86c46eed9de6d0bd13cb71f7294a5e16aa8928bcd2b4"  # NOQA
                 with open("{}/variants/methods.json".format(results), "w") as f:
                     f.write(json.dumps(methods, indent=4))
 
@@ -244,7 +261,11 @@ def check(manifest="manifest.tsv"):
 @runs_once
 def stats():
     """ Print out stats for all the samples run in the current directory """
-    methods = [json.loads(open(m).read()) for m in glob.glob("**/methods.json")]
+    methods = []
+    for root, dirnames, filenames in os.walk('.'):
+        for filename in fnmatch.filter(filenames, 'methods.json'):
+            methods.append(json.loads(open(os.path.join(root, filename)).read()))
+
     durations = [(dateutil.parser.parse(m["end"])
                   - dateutil.parser.parse(m["start"])).total_seconds()/(60*60) for m in methods]
     print("Per sample Runtimes: ", [d for d in durations])
