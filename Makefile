@@ -67,7 +67,7 @@ variants:
 		-v $(shell pwd)/references:/references \
 	  -v `pwd`/$(shell find outputs/expression/*sortedByCoord*):/inputs/sample.bam \
 		-v $(shell pwd)/outputs/variants:/outputs \
-		ucsctreehouse/mini-var-call@sha256:969dd68de680a988ce4f86c46eed9de6d0bd13cb71f7294a5e16aa8928bcd2b4 \
+		ucsctreehouse/mini-var-call@sha256:c6df65fd684c8c7ed6ded16ff7025566aba510b6e47130bed3269012e7247937 \
 			/references/GCA_000001405.15_GRCh38_no_alt_analysis_set.fa \
 			/inputs/sample.bam \
 			/outputs

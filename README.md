@@ -5,7 +5,7 @@ line.
 
 ## Requirements
 
-Docker 1.12.1 or greater
+Docker 1.12.1
 50G Memory
 100G for reference files
 100G Storage per sample
@@ -29,7 +29,8 @@ or
 
     make fusion
 
-Intermediate files will be stores in output/ with the final output named after the input filename with
+
+Intermediate files will be stored in output/ with the final output named after the input filename with
 .gz on the end.  A typical single sample running just expression on a 16 core 120G server will take
 about 8 hours to process. Additional samples submitted at the same time will take a bit less. The
 Makefile has debugging turned on to facilitate any issues with getting the test files to process.
