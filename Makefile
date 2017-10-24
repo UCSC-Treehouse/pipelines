@@ -8,7 +8,7 @@ R2 = $(shell ls samples/*R2* | head -1)
 REF_BASE ?= "http://ceph-gw-01.pod/references"
 # REF_BASE ?= "http://hgdownload.soe.ucsc.edu/treehouse/reference"
 
-all: reference expression fusions verify
+all: reference expression verify
 
 reference:
 	echo "Downloading reference files..."
@@ -67,7 +67,7 @@ variants:
 		-v $(shell pwd)/references:/references \
 	  -v `pwd`/$(shell find outputs/expression/*sortedByCoord*):/inputs/sample.bam \
 		-v $(shell pwd)/outputs/variants:/outputs \
-		ucsctreehouse/mini-var-call@sha256:c6df65fd684c8c7ed6ded16ff7025566aba510b6e47130bed3269012e7247937 \
+		ucsctreehouse/mini-var-call@sha256:197642937956ae73465ad2ef4b42501681ffc3ef07fecb703f58a3487eab37ff \
 			/references/GCA_000001405.15_GRCh38_no_alt_analysis_set.fa \
 			/inputs/sample.bam \
 			/outputs

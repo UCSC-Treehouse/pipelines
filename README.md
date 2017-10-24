@@ -1,7 +1,6 @@
 # UCSC Treehouse Pipelines
 
-Makefile to run pipelines used in Treehouse at partner sites on a single machine from the command
-line.
+Makefile to run Treehouse pipelines partner sites on a single machine from the command line.
 
 ## Requirements
 
@@ -17,7 +16,7 @@ Clone this repository and then run 'make':
     git clone https://github.com/UCSC-Treehouse/pipelines.git
     make
 
-References will be downloaded, verified via MD5, and then the included test file will be run through the pipelines and outputs verified. This will take approximately 20-30 minutes on a 16 core machine excluding reference file download time. At the end you should see:
+References will be downloaded, verified via MD5, and then the included test file will be run through the expression pipeline and outputs verified. This will take approximately 20-30 minutes on a 16 core machine excluding reference file download time. At the end you should see:
 
     -: OK
 
