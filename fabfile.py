@@ -205,7 +205,12 @@ def process(manifest="manifest.tsv", outputs=".",
                     run("mv *.sortedByCoord.md.bam sortedByCoord.md.bam")
                 methods["outputs"] = get("/mnt/outputs/expression", results)
                 methods["end"] = datetime.datetime.utcnow().isoformat()
-                methods["pipeline"] = "quay.io/ucsc_cgl/rnaseq-cgl-pipeline@sha256:785eee9f750ab91078d84d1ee779b6f74717eafc09e49da817af6b87619b0756"  # NOQA
+                methods["pipeline"] = {
+                    "url": "quay.io/ucsc_cgl/rnaseq-cgl-pipeline",
+                    "version": "3.3.4-1.12.3",
+                    "hash":
+                        "sha256:785eee9f750ab91078d84d1ee779b6f74717eafc09e49da817af6b87619b0756"
+                }
                 with open("{}/expression/methods.json".format(results), "w") as f:
                     f.write(json.dumps(methods, indent=4))
 
@@ -214,7 +219,12 @@ def process(manifest="manifest.tsv", outputs=".",
                 run("make fusions")
                 methods["outputs"] = get("/mnt/outputs/fusions", results)
                 methods["end"] = datetime.datetime.utcnow().isoformat()
-                methods["pipeline"] = "ucsctreehouse/fusion@sha256:3faac562666363fa4a80303943a8f5c14854a5f458676e1248a956c13fb534fd"   # NOQA
+                methods["pipeline"] = {
+                    "url": "ucsctreehouse/fusion",
+                    "version": "0.1.0",
+                    "hash":
+                        "sha256:3faac562666363fa4a80303943a8f5c14854a5f458676e1248a956c13fb534fd",
+                }
                 with open("{}/fusions/methods.json".format(results), "w") as f:
                     f.write(json.dumps(methods, indent=4))
 
@@ -234,7 +244,12 @@ def process(manifest="manifest.tsv", outputs=".",
                 local("mkdir -p {}/variants".format(results))
                 methods["outputs"] = get("/mnt/outputs/variants", results)
                 methods["end"] = datetime.datetime.utcnow().isoformat()
-                methods["pipeline"] = "ucsctreehouse/mini-var-call@sha256:969dd68de680a988ce4f86c46eed9de6d0bd13cb71f7294a5e16aa8928bcd2b4"  # NOQA
+                methods["pipeline"] = {
+                    "url": "ucsctreehouse/mini-var-call",
+                    "version": "0.0.1",
+                    "hash":
+                        "sha256:197642937956ae73465ad2ef4b42501681ffc3ef07fecb703f58a3487eab37ff"
+                }
                 with open("{}/variants/methods.json".format(results), "w") as f:
                     f.write(json.dumps(methods, indent=4))
 

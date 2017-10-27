@@ -28,7 +28,7 @@ reference:
 	fi
 
 expression:
-	echo "Running expression and qc pipeline on $(R1) and $(R2)"
+	echo "Running expression and qc pipeline 3.3.4-1.12.3 on $(R1) and $(R2)"
 	mkdir -p outputs/expression
 	docker run --rm \
 		-v $(shell pwd)/outputs/expression:$(shell pwd)/outputs/expression \
@@ -46,7 +46,7 @@ expression:
 			--sample-paired $(R1),$(R2)
 
 fusions:
-	echo "Running fusion pipeline on $(R1) and $(R2)"
+	echo "Running fusion 0.1.0 pipeline on $(R1) and $(R2)"
 	mkdir -p outputs/fusions
 	docker run --rm \
 		-v $(shell pwd)/outputs:/data/outputs \
