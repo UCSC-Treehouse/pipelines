@@ -229,6 +229,7 @@ def process(manifest="manifest.tsv", outputs=".",
                     f.write(json.dumps(methods, indent=4))
 
             if variants == "True":
+                # Hack code to push bam back to instance if just running variants
                 # local_bam = "{}/expression/{}.sortedByCoord.md.bam".format(results, sample_id)
                 # remote_bam = "outputs/expression/{}.sortedByCoord.md.bam".format(sample_id)
                 # print("bams:", local_bam, remote_bam)
@@ -242,6 +243,7 @@ def process(manifest="manifest.tsv", outputs=".",
                 methods["start"] = datetime.datetime.utcnow().isoformat()
                 run("make variants")
                 local("mkdir -p {}/variants".format(results))
+                methods["inputs"].append("{}/expression/sortedByCoord.md.bam".format(results))
                 methods["outputs"] = get("/mnt/outputs/variants", results)
                 methods["end"] = datetime.datetime.utcnow().isoformat()
                 methods["pipeline"] = {
