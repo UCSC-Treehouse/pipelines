@@ -207,10 +207,11 @@ def process(manifest="manifest.tsv", outputs=".",
                 methods["end"] = datetime.datetime.utcnow().isoformat()
                 methods["pipeline"] = {
                     "source": "https://github.com/BD2KGenomics/toil-rnaseq",
-                    "docker": "https://quay.io/ucsc_cgl/rnaseq-cgl-pipeline",
-                    "version": "3.3.4-1.12.3",
-                    "hash":
-                        "sha256:785eee9f750ab91078d84d1ee779b6f74717eafc09e49da817af6b87619b0756"
+                    "docker": {
+                        "url": "https://quay.io/ucsc_cgl/rnaseq-cgl-pipeline",
+                        "version": "3.3.4-1.12.3",
+                        "hash": "sha256:785eee9f750ab91078d84d1ee779b6f74717eafc09e49da817af6b87619b0756" # NOQA
+                    }
                 }
                 with open("{}/expression/methods.json".format(results), "w") as f:
                     f.write(json.dumps(methods, indent=4))
@@ -222,10 +223,11 @@ def process(manifest="manifest.tsv", outputs=".",
                 methods["end"] = datetime.datetime.utcnow().isoformat()
                 methods["pipeline"] = {
                     "source": "https://github.com/UCSC-Treehouse/fusion",
-                    "docker": "https://hub.docker.com/r/ucsctreehouse/fusion",
-                    "version": "0.1.0",
-                    "hash":
-                        "sha256:3faac562666363fa4a80303943a8f5c14854a5f458676e1248a956c13fb534fd",
+                    "docker": {
+                        "url": "https://hub.docker.com/r/ucsctreehouse/fusion",
+                        "version": "0.1.0",
+                        "hash": "sha256:3faac562666363fa4a80303943a8f5c14854a5f458676e1248a956c13fb534fd" # NOQA
+                    }
                 }
                 with open("{}/fusions/methods.json".format(results), "w") as f:
                     f.write(json.dumps(methods, indent=4))
@@ -250,10 +252,11 @@ def process(manifest="manifest.tsv", outputs=".",
                 methods["end"] = datetime.datetime.utcnow().isoformat()
                 methods["pipeline"] = {
                     "source": "https://github.com/UCSC-Treehouse/mini-var-call",
-                    "docker": "https://hub.docker.com/r/ucsctreehouse/mini_var_call",
-                    "version": "0.0.1",
-                    "hash":
-                        "sha256:197642937956ae73465ad2ef4b42501681ffc3ef07fecb703f58a3487eab37ff"
+                    "docker": {
+                        "url": "https://hub.docker.com/r/ucsctreehouse/mini-var-call",
+                        "version": "0.0.1",
+                        "hash": "sha256:197642937956ae73465ad2ef4b42501681ffc3ef07fecb703f58a3487eab37ff" # NOQA
+                    }
                 }
                 with open("{}/variants/methods.json".format(results), "w") as f:
                     f.write(json.dumps(methods, indent=4))
