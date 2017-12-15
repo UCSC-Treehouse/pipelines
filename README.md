@@ -1,14 +1,14 @@
 # UCSC Treehouse Pipelines
 
-Makefile to run Treehouse expression, fusion, and variant pipelines on a single machine from the command line.
+Makefile to run the expression, fusion and variant secondary pipelines used by [Treehouse](https://treehouse.soe.ucsc.edu/) on a single machine from the command line.
 
 ## Requirements
 
-Docker 1.12.x
-16+ cores
-50G+ memory
-100G+ storage for reference files
-100G+ storage per sample
+  Docker 1.12.x
+  16+ cores
+  50G+ memory
+  100G+ storage for reference files
+  100G+ storage per sample
 
 ## Getting Started
 
@@ -29,7 +29,7 @@ References will be downloaded, verified via MD5, and then the included test file
     tail -n 10 outputs/variants/mini.ann.vcf | md5sum -c md5/variants.md5
     -: OK
 
-The output will look like this:
+You should see the following under outputs:
 
     outputs/
     ├── expression
@@ -75,10 +75,10 @@ prepended to the folder name:
 
 All of the source to the pipelines are available on github with additional documentation:
 
-    https://github.com/BD2KGenomics/toil-rnaseq
-    https://github.com/UCSC-Treehouse/bam_qc
-    https://github.com/UCSC-Treehouse/fusion
-    https://github.com/UCSC-Treehouse/mini-var-call
+[https://github.com/BD2KGenomics/toil-rnaseq]
+[https://github.com/UCSC-Treehouse/bam_qc]
+[https://github.com/UCSC-Treehouse/fusion]
+[https://github.com/UCSC-Treehouse/mini-var-call]
 
 ## Options
 
