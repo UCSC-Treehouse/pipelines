@@ -8,7 +8,7 @@ R2 = $(shell ls samples/*R2* | head -1)
 REF_BASE ?= "http://ceph-gw-01.pod/references"
 # REF_BASE ?= "http://hgdownload.soe.ucsc.edu/treehouse/reference"
 
-all: reference expression verify
+all: reference expression fusions verify
 
 reference:
 	echo "Downloading reference files..."
@@ -75,4 +75,5 @@ variants:
 verify:
 	echo "Verifying md5 of output of test file (FAIL. is normal as its a small number of reads)"
 	tar -xOzvf outputs/TEST_R1merged.tar.gz FAIL.TEST_R1merged/RSEM/rsem_genes.results | md5sum -c md5/expression.md5
-	cut -f 1 outputs/fusion/star-fusion-non-filtered.final | sort | md5sum -c md5/fusion.md5
+	cut -f 1 outputs/fusion/star-fusion-non-filtered.final | sort | md5sum -c md5/fusions.md5
+	cat outputs/variants/mini.ann.vcf | md5sum -c md5/variants.md5
