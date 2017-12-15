@@ -4,11 +4,11 @@ Makefile to run the expression, fusion and variant secondary pipelines used by [
 
 ## Requirements
 
-  Docker 1.12.x
-  16+ cores
-  50G+ memory
-  100G+ storage for reference files
-  100G+ storage per sample
+    Docker 1.12.x
+    16+ cores
+    50G+ memory
+    100G+ storage for reference files
+    100G+ storage per sample
 
 ## Getting Started
 
@@ -76,8 +76,11 @@ prepended to the folder name:
 All of the source to the pipelines are available on github with additional documentation:
 
 [https://github.com/BD2KGenomics/toil-rnaseq]
+
 [https://github.com/UCSC-Treehouse/bam_qc]
+
 [https://github.com/UCSC-Treehouse/fusion]
+
 [https://github.com/UCSC-Treehouse/mini-var-call]
 
 ## Options
