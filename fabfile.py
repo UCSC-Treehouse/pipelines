@@ -123,11 +123,11 @@ def reference():
     """ Configure each machine with reference files. """
     put("{}/md5".format(os.path.dirname(env.real_fabfile)), "/mnt")
     with cd("/mnt"):
-        run("make reference")
+        run("REF_BASE='http://ceph-gw-01.pod/references' make reference")
 
 
 def reset():
-    # Stop any existing processing and delete inputs and outputs
+    """ Stop any existing processing and delete inputs and outputs """
     print("Resetting {}".format(env.host))
     with warn_only():
         run("docker stop $(docker ps -a -q)")

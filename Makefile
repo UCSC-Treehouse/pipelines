@@ -5,13 +5,12 @@
 R1 = $(shell ls samples/*R1* | head -1)
 R2 = $(shell ls samples/*R2* | head -1)
 
-REF_BASE ?= "http://ceph-gw-01.pod/references"
-# REF_BASE ?= "http://hgdownload.soe.ucsc.edu/treehouse/reference"
+REF_BASE ?= "http://hgdownload.soe.ucsc.edu/treehouse/reference"
 
-all: reference expression fusions verify
+all: reference expression fusions variants verify
 
 reference:
-	echo "Downloading reference files..."
+	echo "Downloading reference files from $(REF_BASE)..."
 	mkdir -p references
 	wget -N -P references $(REF_BASE)/kallisto_hg38.idx
 	wget -N -P references $(REF_BASE)/starIndex_hg38_no_alt.tar.gz
@@ -36,7 +35,6 @@ expression:
 		-v $(shell pwd)/references:/references \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		quay.io/ucsc_cgl/rnaseq-cgl-pipeline@sha256:785eee9f750ab91078d84d1ee779b6f74717eafc09e49da817af6b87619b0756 \
-			--logDebug \
 			--bamqc \
 			--save-bam \
 			--star /references/starIndex_hg38_no_alt.tar.gz \
@@ -73,7 +71,7 @@ variants:
 			/outputs
 
 verify:
-	echo "Verifying md5 of output of test file (FAIL. is normal as its a small number of reads)"
-	tar -xOzvf outputs/TEST_R1merged.tar.gz FAIL.TEST_R1merged/RSEM/rsem_genes.results | md5sum -c md5/expression.md5
-	cut -f 1 outputs/fusion/star-fusion-non-filtered.final | sort | md5sum -c md5/fusions.md5
-	cat outputs/variants/mini.ann.vcf | md5sum -c md5/variants.md5
+	echo "Verifying md5 of output of TEST file"
+	tar -xOzvf outputs/expression/TEST_R1merged.tar.gz FAIL.TEST_R1merged/RSEM/rsem_genes.results | md5sum -c md5/expression.md5
+	cut -f 1 outputs/fusions/star-fusion-non-filtered.final | sort | md5sum -c md5/fusions.md5
+	tail -n 10 outputs/variants/mini.ann.vcf | md5sum -c md5/variants.md5
