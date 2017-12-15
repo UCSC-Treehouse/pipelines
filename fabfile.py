@@ -123,11 +123,11 @@ def reference():
     """ Configure each machine with reference files. """
     put("{}/md5".format(os.path.dirname(env.real_fabfile)), "/mnt")
     with cd("/mnt"):
-        run("make reference")
+        run("REF_BASE='http://ceph-gw-01.pod/references' make reference")
 
 
 def reset():
-    # Stop any existing processing and delete inputs and outputs
+    """ Stop any existing processing and delete inputs and outputs """
     print("Resetting {}".format(env.host))
     with warn_only():
         run("docker stop $(docker ps -a -q)")
@@ -178,7 +178,7 @@ def process(manifest="manifest.tsv", outputs=".",
         # Create folder on storage for results named after sample id
         # Wait until now in case something above fails so we don't have
         # an empty directory
-        results = "{}/{}".format(outputs, sample_id)
+        results = "{}/{}/secondary".format(outputs, sample_id)
         local("mkdir -p {}".format(results))
 
         with cd("/mnt"):
@@ -203,32 +203,45 @@ def process(manifest="manifest.tsv", outputs=".",
                     run("tar -xvf *.tar.gz --strip 1")
                     run("rm *.tar.gz")
                     run("mv *.sortedByCoord.md.bam sortedByCoord.md.bam")
-                methods["outputs"] = get("/mnt/outputs/expression", results)
+
+                dest = "{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9".format(results)
+                local("mkdir -p {}".format(dest))
+
+                methods["outputs"] = get("/mnt/outputs/expression/*", dest)
                 methods["end"] = datetime.datetime.utcnow().isoformat()
                 methods["pipeline"] = {
-                    "url": "quay.io/ucsc_cgl/rnaseq-cgl-pipeline",
-                    "version": "3.3.4-1.12.3",
-                    "hash":
-                        "sha256:785eee9f750ab91078d84d1ee779b6f74717eafc09e49da817af6b87619b0756"
+                    "source": "https://github.com/BD2KGenomics/toil-rnaseq",
+                    "docker": {
+                        "url": "https://quay.io/ucsc_cgl/rnaseq-cgl-pipeline",
+                        "version": "3.3.4-1.12.3",
+                        "hash": "sha256:785eee9f750ab91078d84d1ee779b6f74717eafc09e49da817af6b87619b0756" # NOQA
+                    }
                 }
-                with open("{}/expression/methods.json".format(results), "w") as f:
+                with open("{}/methods.json".format(dest), "w") as f:
                     f.write(json.dumps(methods, indent=4))
 
             if fusions == "True":
                 methods["start"] = datetime.datetime.utcnow().isoformat()
                 run("make fusions")
-                methods["outputs"] = get("/mnt/outputs/fusions", results)
+
+                dest = "{}/ucsctreehouse-fusion-0.1.0-3faac56".format(results)
+                local("mkdir -p {}".format(dest))
+
+                methods["outputs"] = get("/mnt/outputs/fusions/*", dest)
                 methods["end"] = datetime.datetime.utcnow().isoformat()
                 methods["pipeline"] = {
-                    "url": "ucsctreehouse/fusion",
-                    "version": "0.1.0",
-                    "hash":
-                        "sha256:3faac562666363fa4a80303943a8f5c14854a5f458676e1248a956c13fb534fd",
+                    "source": "https://github.com/UCSC-Treehouse/fusion",
+                    "docker": {
+                        "url": "https://hub.docker.com/r/ucsctreehouse/fusion",
+                        "version": "0.1.0",
+                        "hash": "sha256:3faac562666363fa4a80303943a8f5c14854a5f458676e1248a956c13fb534fd" # NOQA
+                    }
                 }
-                with open("{}/fusions/methods.json".format(results), "w") as f:
+                with open("{}/methods.json".format(dest), "w") as f:
                     f.write(json.dumps(methods, indent=4))
 
             if variants == "True":
+                # Hack code to push bam back to instance if just running variants
                 # local_bam = "{}/expression/{}.sortedByCoord.md.bam".format(results, sample_id)
                 # remote_bam = "outputs/expression/{}.sortedByCoord.md.bam".format(sample_id)
                 # print("bams:", local_bam, remote_bam)
@@ -241,16 +254,24 @@ def process(manifest="manifest.tsv", outputs=".",
                 #     return
                 methods["start"] = datetime.datetime.utcnow().isoformat()
                 run("make variants")
-                local("mkdir -p {}/variants".format(results))
-                methods["outputs"] = get("/mnt/outputs/variants", results)
+
+                dest = "{}/ucsctreehouse-mini-var-call-0.0.1-1976429".format(results)
+                local("mkdir -p {}".format(dest))
+
+                methods["inputs"].append(
+                    "{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9/sortedByCoord.md.bam".format(
+                        results))
+                methods["outputs"] = get("/mnt/outputs/variants/*", dest)
                 methods["end"] = datetime.datetime.utcnow().isoformat()
                 methods["pipeline"] = {
-                    "url": "ucsctreehouse/mini-var-call",
-                    "version": "0.0.1",
-                    "hash":
-                        "sha256:197642937956ae73465ad2ef4b42501681ffc3ef07fecb703f58a3487eab37ff"
+                    "source": "https://github.com/UCSC-Treehouse/mini-var-call",
+                    "docker": {
+                        "url": "https://hub.docker.com/r/ucsctreehouse/mini-var-call",
+                        "version": "0.0.1",
+                        "hash": "sha256:197642937956ae73465ad2ef4b42501681ffc3ef07fecb703f58a3487eab37ff" # NOQA
+                    }
                 }
-                with open("{}/variants/methods.json".format(results), "w") as f:
+                with open("{}/methods.json".format(dest), "w") as f:
                     f.write(json.dumps(methods, indent=4))
 
 
