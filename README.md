@@ -87,4 +87,4 @@ All of the source to the pipelines are available on github with additional docum
 
 You can run off bam qc for faster expression run times by removing --bamqc. But note that you will not be able to run the variant pipeline as it requires the sorted bam file that bamqc generates.
 
-The Makefile has debugging turned on to facilitate any issues with getting the test files to process.  After you are up and running change to --logInfo. 
+Add --logInfo to the rnaseq docker call for additional debugging messages.
