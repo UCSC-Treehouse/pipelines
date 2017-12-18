@@ -3,7 +3,7 @@
 # Generates expression, fusions, and variants folders in outputs
 
 R1 = $(shell find samples -iregex ".*?[_1|_R1]\..*?" | head -1)
-R2 = $(shell find samples -iregex ".*?[_1|_R1]\..*?" | head -1)
+R2 = $(shell find samples -iregex ".*?[_2|_R2]\..*?" | head -1)
 
 REF_BASE ?= "http://hgdownload.soe.ucsc.edu/treehouse/reference"
 
