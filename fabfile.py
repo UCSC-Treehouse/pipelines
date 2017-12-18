@@ -151,6 +151,9 @@ def process(manifest="manifest.tsv", outputs=".",
 
     print("Processing starting on {}".format(env.host))
 
+    base = os.path.split(outputs)[0]
+    print("Using {} as base for all paths".format(base))
+
     # Each machine will process every #hosts samples
     for sample in itertools.islice(csv.DictReader(open(manifest, "rU"), delimiter="\t"),
                                    env.hosts.index(env.host),
@@ -173,7 +176,7 @@ def process(manifest="manifest.tsv", outputs=".",
                       "git --work-tree={0} --git-dir {0}/.git describe --always".format(
                           os.path.dirname(__file__)), capture=True),
                    "sample_id": sample_id,
-                   "inputs": sample_files}
+                   "inputs": [os.path.relpath(s, base) for s in sample_files]}
 
         # Create folder on storage for results named after sample id
         # Wait until now in case something above fails so we don't have
@@ -207,7 +210,8 @@ def process(manifest="manifest.tsv", outputs=".",
                 dest = "{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9".format(results)
                 local("mkdir -p {}".format(dest))
 
-                methods["outputs"] = get("/mnt/outputs/expression/*", dest)
+                methods["outputs"] = [
+                    os.path.relpath(p, base) for p in get("/mnt/outputs/expression/*", dest)]
                 methods["end"] = datetime.datetime.utcnow().isoformat()
                 methods["pipeline"] = {
                     "source": "https://github.com/BD2KGenomics/toil-rnaseq",
@@ -227,7 +231,8 @@ def process(manifest="manifest.tsv", outputs=".",
                 dest = "{}/ucsctreehouse-fusion-0.1.0-3faac56".format(results)
                 local("mkdir -p {}".format(dest))
 
-                methods["outputs"] = get("/mnt/outputs/fusions/*", dest)
+                methods["outputs"] = [
+                    os.path.relpath(p, base) for p in get("/mnt/outputs/fusions/*", dest)]
                 methods["end"] = datetime.datetime.utcnow().isoformat()
                 methods["pipeline"] = {
                     "source": "https://github.com/UCSC-Treehouse/fusion",
@@ -260,8 +265,9 @@ def process(manifest="manifest.tsv", outputs=".",
 
                 methods["inputs"].append(
                     "{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9/sortedByCoord.md.bam".format(
-                        results))
-                methods["outputs"] = get("/mnt/outputs/variants/*", dest)
+                        os.path.relpath(results, base)))
+                methods["outputs"] = [
+                    os.path.relpath(p, base) for p in get("/mnt/outputs/variants/*", dest)]
                 methods["end"] = datetime.datetime.utcnow().isoformat()
                 methods["pipeline"] = {
                     "source": "https://github.com/UCSC-Treehouse/mini-var-call",

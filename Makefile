@@ -2,8 +2,8 @@
 #
 # Generates expression, fusions, and variants folders in outputs
 
-R1 = $(shell ls samples/*R1* | head -1)
-R2 = $(shell ls samples/*R2* | head -1)
+R1 = $(find `pwd`/samples -iregex ".*?[_1|_R1]\..*?" | head -1)
+R2 = $(find `pwd`/samples -iregex ".*?[_1|_R1]\..*?" | head -1)
 
 REF_BASE ?= "http://hgdownload.soe.ucsc.edu/treehouse/reference"
 

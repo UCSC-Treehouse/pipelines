@@ -42,7 +42,7 @@ You should see the following under outputs:
     └── variants
         └── mini.ann.vcf
 
-To run your own samples replace the TEST R1 and R2 fastq's with your own and run:
+Replace the TEST files under samples/ with your own with 1/2 or R1/R2 in their names and then:
 
     make expression fusions variants
 
