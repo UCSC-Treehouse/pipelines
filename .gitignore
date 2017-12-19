@@ -1,3 +1,4 @@
 references/*.gz
 references/*.idx
 work/
+*.py[cod]
