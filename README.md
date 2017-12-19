@@ -17,7 +17,7 @@ Clone this repository and then run 'make':
     git clone https://github.com/UCSC-Treehouse/pipelines.git
     make
 
-References will be downloaded, verified via MD5, and then the included test file will be run through the pipelines and outputs verified. This will take approximately 20-30 minutes on a 16 core machine excluding reference file download time. At the end you should see:
+References will be downloaded, verified via MD5, and then the included TEST paird fastqs will be run through the pipelines and outputs verified. This will take approximately 20-30 minutes on a 16 core machine excluding reference file download time. At the end you should see:
 
     Verifying md5 of output of TEST file
     tar -xOzvf outputs/expression/TEST_R1merged.tar.gz FAIL.TEST_R1merged/RSEM/rsem_genes.results |
@@ -28,8 +28,10 @@ References will be downloaded, verified via MD5, and then the included test file
     -: OK
     tail -n 10 outputs/variants/mini.ann.vcf | md5sum -c md5/variants.md5
     -: OK
+    
+NOTE: Fail is expected as the test file contains too few reads to pass bam qc
 
-You should see the following under outputs:
+Under outputs you should see the following:
 
     outputs/
     ├── expression
@@ -42,16 +44,16 @@ You should see the following under outputs:
     └── variants
         └── mini.ann.vcf
 
-Replace the TEST files under samples/ with your own with 1/2 or R1/R2 in their names and then:
+Replace the TEST files under samples/ with your own pair of fastq's with _1/_2 or _R1/_R2 in their name and then:
 
     make expression fusions variants
 
-A typical single sample running all three pipelines will take about 18 hours depending on the size/depth. Of this around 8 hours is expression, 8 hours is bam qc, 2 hours is fusion and a few minutes is variants. 
+A typical single sample running all three pipelines will take about 18 hours depending on the size/depth. Of this around 8 hours is expression, 8 hours is bam qc, 2 hours is fusion and a few minutes for variants. 
 
 ## Expression and BAM QC Outputs
 
 The output is a tar.gz file with a variety of results merged. If bamqc fails then 'FAIL.' will be
-prepended to the folder name:
+prepended to the folder name in the tar file:
 
     TEST_R1merged/RSEM/rsem_genes.results
     TEST_R1merged/RSEM/rsem_isoforms.results
@@ -73,7 +75,7 @@ prepended to the folder name:
 
 ## Pipeline Sources
 
-All of the source to the pipelines are available on github with additional documentation:
+For additional information and source code for each pipeline see the following github repos:
 
 [https://github.com/BD2KGenomics/toil-rnaseq]
 
