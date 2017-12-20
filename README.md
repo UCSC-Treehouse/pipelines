@@ -1,4 +1,4 @@
-# UCSC Treehouse Pipelines
+#Run the pipelines, backhaul results, write methods.json UCSC Treehouse Pipelines
 
 Makefile to run the expression, fusion and variant secondary pipelines used by [Treehouse](https://treehouse.soe.ucsc.edu/) on a single machine from the command line.
 

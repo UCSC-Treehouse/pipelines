@@ -26,6 +26,16 @@ reference:
 		tar -zxsvf references/STARFusion-GRCh38gencode23.tar.gz -C references --skip-old-files; \
 	fi
 
+checksums:
+	echo "Calculating md5 of input sample files"
+	mkdir -p outputs/checksums
+	docker run --rm \
+		-v $(shell pwd)/outputs:/data/outputs \
+		-v $(shell pwd)/samples:/data/samples \
+		-w /data/samples \
+		alpine@sha256:ccba511b1d6b5f1d83825a94f9d5b05528db456d9cf14a1ea1db892c939cda64 \
+			/bin/sh -c "md5sum * > /data/outputs/checksums/md5"
+
 expression:
 	echo "Running expression and qc pipeline 3.3.4-1.12.3 on $(R1) and $(R2)"
 	mkdir -p outputs/expression
@@ -59,7 +69,7 @@ fusions:
 			--run-fusion-inspector
 
 variants:
-	echo "Running rna variant calling on sorted bam from expression WARNING: EXPERIMENTAL"
+	echo "Running rna variant calling on sorted bam from expression"
 	mkdir -p outputs/variants
 	docker run --rm \
 		-v $(shell pwd)/references:/references \
