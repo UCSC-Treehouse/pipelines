@@ -35,6 +35,9 @@ import glob
 from fabric.api import env, local, run, sudo, runs_once, parallel, warn_only, cd, settings
 from fabric.operations import put, get
 
+import logging
+logging.basicConfig(level=logging.INFO)
+
 """
 Setup the fabric hosts environment using docker-machine ip addresses as hostnames are not
 resolvable. Also point to all the per machine ssh keys. An alternative would be to use one key but
@@ -49,7 +52,10 @@ def find_machines():
                 for m in glob.glob("../.docker/machine/machines/*/config.json")]
     env.hostnames = [m["MachineName"] for m in machines]
     env.hosts = [m["IPAddress"] for m in machines]
-    env.key_filename = [m["SSHKeyPath"] for m in machines]
+
+    # Use single key due to https://github.com/UCSC-Treehouse/pipelines/issues/5
+    # env.key_filename = [m["SSHKeyPath"] for m in machines]
+    env.key_filename = "~/.ssh/id_rsa"
 
 
 find_machines()
@@ -62,6 +68,7 @@ def up(count=1):
     for i in range(int(count)):
         hostname = "{}-treeshop-{:%Y%m%d-%H%M%S}".format(
             os.environ["USER"], datetime.datetime.now())
+        # Create a new keypair per machine due to https://github.com/docker/machine/issues/3261
         local("""
               docker-machine create --driver openstack \
               --openstack-tenant-name treehouse \
@@ -73,6 +80,10 @@ def up(count=1):
               --openstack-flavor-name z1.medium \
               {}
               """.format(hostname))
+
+        # Copy over single key due to https://github.com/UCSC-Treehouse/pipelines/issues/5
+        local("cat ~/.ssh/id_rsa.pub" +
+              "| docker-machine ssh {} 'cat >> ~/.ssh/authorized_keys'".format(hostname))
 
     # In case additional commands are called after up
     find_machines()
@@ -99,10 +110,6 @@ def top():
     """ Get list of docker containers and top 3 processes """
     run("docker ps")
     run("top -b -n 1 | head -n 12  | tail -n 3")
-
-
-def temp():
-    run("ps")
 
 
 @parallel
