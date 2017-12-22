@@ -11,7 +11,7 @@ processing on the command line.
 
 Storage Hierarchy:
 
-Samples and results are managed on disk or S3 with the following hierarchy:
+Samples and outputs are managed on disk or S3 with the following hierarchy:
 
 primary/
     original/
@@ -29,11 +29,10 @@ downstream/
 
 """
 import os
-import re
 import datetime
 import json
 import glob
-from fabric.api import env, local, run, sudo, runs_once, parallel, warn_only, cd
+from fabric.api import env, local, run, sudo, runs_once, parallel, warn_only, cd, settings
 from fabric.operations import put, get
 
 """
@@ -46,12 +45,11 @@ on openstack the driver deletes it on termination.
 def find_machines():
     """ Fill in host globals from docker-machine """
     env.user = "ubuntu"
-    env.hostnames = local("docker-machine ls --filter state=Running --format '{{.Name}}'",
-                          capture=True).split("\n")
-    env.hosts = re.findall(r'[0-9]+(?:\.[0-9]+){3}',
-                           local("docker-machine ls --filter state=Running --format '{{.URL}}'",
-                                 capture=True))
-    env.key_filename = ["~/.docker/machine/machines/{}/id_rsa".format(m) for m in env.hostnames]
+    machines = [json.loads(open(m).read())["Driver"]
+                for m in glob.glob("../.docker/machine/machines/*/config.json")]
+    env.hostnames = [m["MachineName"] for m in machines]
+    env.hosts = [m["IPAddress"] for m in machines]
+    env.key_filename = [m["SSHKeyPath"] for m in machines]
 
 
 find_machines()
@@ -103,6 +101,10 @@ def top():
     run("top -b -n 1 | head -n 12  | tail -n 3")
 
 
+def temp():
+    run("ps")
+
+
 @parallel
 def configure():
     """ Copy pipeline makefile over, make directories etc... """
@@ -129,7 +131,7 @@ def configure():
     put("{}/Makefile".format(os.path.dirname(env.real_fabfile)), "/mnt")
 
 
-@parallel
+# @parallel
 def reference():
     """ Configure each machine with reference files. """
     put("{}/md5".format(os.path.dirname(env.real_fabfile)), "/mnt")
@@ -154,6 +156,11 @@ def reset():
 def process(manifest="manifest.txt", base=".", checksum_only="False"):
     """ Process all ids listed in 'manifest' """
 
+    def log_error(message):
+        print(message)
+        with open("errors.txt", "a") as error_log:
+            error_log.write(message + "\n")
+
     # Read ids and pick every #hosts to allocate round robin to each machine
     with open(manifest) as f:
         ids = sorted([word.strip() for line in f.readlines() for word in line.split(',')
@@ -166,8 +173,8 @@ def process(manifest="manifest.txt", base=".", checksum_only="False"):
 
     for sample in samples:
         if len(sample["fastqs"]) != 2:
-            print("Too many or few fastqs for {}: {}".format(sample["id"], sample["fastqs"]))
-            return
+            log_error("Too many or few fastqs for {}: {}".format(sample["id"], sample["fastqs"]))
+            continue
 
     print("Samples to be processed on {}:".format(env.host), samples)
 
@@ -186,9 +193,9 @@ def process(manifest="manifest.txt", base=".", checksum_only="False"):
             print("Copying fastq {} to cluster machine....".format(fastq))
             put("{}/{}".format(base, fastq), "/mnt/samples/{}".format(os.path.basename(fastq)))
 
-        # Create results parent
-        results = "{}/downstream/{}/secondary".format(base, sample["id"])
-        local("mkdir -p {}".format(results))
+        # Create output parent
+        output = "{}/downstream/{}/secondary".format(base, sample["id"])
+        local("mkdir -p {}".format(output))
 
         # Initialize methods.json
         methods = {"user": os.environ["USER"],
@@ -199,12 +206,16 @@ def process(manifest="manifest.txt", base=".", checksum_only="False"):
 
         # Calculate checksums
         methods["start"] = datetime.datetime.utcnow().isoformat()
-        run("cd /mnt && make checksums")
+        with settings(warn_only=True):
+            result = run("cd /mnt && make checksums")
+            if result.failed:
+                log_error("{} Failed checksums: {}".format(sample["id"], result))
+                continue
 
-        dest = "{}/md5sum-3.7.0-ccba511".format(results)
+        dest = "{}/md5sum-3.7.0-ccba511".format(output)
         local("mkdir -p {}".format(dest))
 
-        # Copy results back
+        # Copy output back
         methods["outputs"] = [
             os.path.relpath(p, base) for p in get("/mnt/outputs/checksums/*", dest)]
         methods["end"] = datetime.datetime.utcnow().isoformat()
@@ -224,11 +235,15 @@ def process(manifest="manifest.txt", base=".", checksum_only="False"):
 
         # Calculate expression
         methods["start"] = datetime.datetime.utcnow().isoformat()
-        run("cd /mnt && make expression")
+        with settings(warn_only=True):
+            result = run("cd /mnt && make expression")
+            if result.failed:
+                log_error("{} Failed expression: {}".format(sample["id"], result))
+                continue
 
-        # Create results parent - wait till now in case first pipeline halted
-        results = "{}/downstream/{}/secondary".format(base, sample["id"])
-        local("mkdir -p {}".format(results))
+        # Create output parent - wait till now in case first pipeline halted
+        output = "{}/downstream/{}/secondary".format(base, sample["id"])
+        local("mkdir -p {}".format(output))
 
         # Unpack outputs and normalize names so we don't have sample id in them
         with cd("/mnt/outputs/expression"):
@@ -236,10 +251,10 @@ def process(manifest="manifest.txt", base=".", checksum_only="False"):
             run("rm *.tar.gz")
             run("mv *.sortedByCoord.md.bam sortedByCoord.md.bam")
 
-        dest = "{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9".format(results)
+        dest = "{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9".format(output)
         local("mkdir -p {}".format(dest))
 
-        # Copy results back
+        # Copy output back
         methods["outputs"] = [
             os.path.relpath(p, base) for p in get("/mnt/outputs/expression/*", dest)]
         methods["end"] = datetime.datetime.utcnow().isoformat()
@@ -256,9 +271,13 @@ def process(manifest="manifest.txt", base=".", checksum_only="False"):
 
         # Calculate fusion
         methods["start"] = datetime.datetime.utcnow().isoformat()
-        run("cd /mnt && make fusions")
+        with settings(warn_only=True):
+            result = run("cd /mnt && make fusions")
+            if result.failed:
+                log_error("{} Failed fusions: {}".format(sample["id"], result))
+                continue
 
-        dest = "{}/ucsctreehouse-fusion-0.1.0-3faac56".format(results)
+        dest = "{}/ucsctreehouse-fusion-0.1.0-3faac56".format(output)
         local("mkdir -p {}".format(dest))
 
         methods["outputs"] = [
@@ -277,14 +296,18 @@ def process(manifest="manifest.txt", base=".", checksum_only="False"):
 
         # Calculate variants
         methods["start"] = datetime.datetime.utcnow().isoformat()
-        run("cd /mnt && make variants")
+        with settings(warn_only=True):
+            result = run("cd /mnt && make variants")
+            if result.failed:
+                log_error("{} Failed variants: {}".format(sample["id"], result))
+                continue
 
-        dest = "{}/ucsctreehouse-mini-var-call-0.0.1-1976429".format(results)
+        dest = "{}/ucsctreehouse-mini-var-call-0.0.1-1976429".format(output)
         local("mkdir -p {}".format(dest))
 
         methods["inputs"].append(
             "{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9/sortedByCoord.md.bam".format(
-                os.path.relpath(results, base)))
+                os.path.relpath(output, base)))
         methods["outputs"] = [
             os.path.relpath(p, base) for p in get("/mnt/outputs/variants/*", dest)]
         methods["end"] = datetime.datetime.utcnow().isoformat()
