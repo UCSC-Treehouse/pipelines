@@ -46,13 +46,15 @@ on openstack the driver deletes it on termination.
 
 
 def find_machines():
+
     """ Fill in host globals from docker-machine """
     env.user = "ubuntu"
     machines = [json.loads(open(m).read())["Driver"]
-                for m in glob.glob("../.docker/machine/machines/*/config.json")]
-    env.hostnames = [m["MachineName"] for m in machines]
-    env.hosts = [m["IPAddress"] for m in machines]
-
+                for m in glob.glob(os.path.expanduser("~/.docker/machine/machines/*/config.json"))]
+    env.hostnames = [m["MachineName"] for m in machines
+                     if not env.hosts or m["MachineName"] in env.hosts]
+    env.hosts = [m["IPAddress"] for m in machines
+                 if not env.hosts or m["MachineName"] in env.hosts]
     # Use single key due to https://github.com/UCSC-Treehouse/pipelines/issues/5
     # env.key_filename = [m["SSHKeyPath"] for m in machines]
     env.key_filename = "~/.ssh/id_rsa"
@@ -138,7 +140,7 @@ def configure():
     put("{}/Makefile".format(os.path.dirname(env.real_fabfile)), "/mnt")
 
 
-# @parallel
+@parallel
 def reference():
     """ Configure each machine with reference files. """
     put("{}/md5".format(os.path.dirname(env.real_fabfile)), "/mnt")
