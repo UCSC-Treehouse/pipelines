@@ -35,8 +35,9 @@ import glob
 from fabric.api import env, local, run, sudo, runs_once, parallel, warn_only, cd, settings
 from fabric.operations import put, get
 
-import logging
-logging.basicConfig(level=logging.INFO)
+# To debug communication issues un-comment the following
+# import logging
+# logging.basicConfig(level=logging.DEBUG)
 
 """
 Setup the fabric hosts environment using docker-machine ip addresses as hostnames are not
@@ -109,9 +110,8 @@ def machines():
 
 
 def top():
-    """ Get list of docker containers and top 3 processes """
+    """ Get list of docker containers """
     run("docker ps")
-    run("top -b -n 1 | head -n 12  | tail -n 3")
 
 
 @parallel
@@ -229,7 +229,7 @@ def process(manifest="manifest.txt", base=".", checksum_only="False"):
             os.path.relpath(p, base) for p in get("/mnt/outputs/checksums/*", dest)]
         methods["end"] = datetime.datetime.utcnow().isoformat()
         methods["pipeline"] = {
-            "source": "https://github.com/BD2KGenomics/toil-rnaseq",
+            "source": "https://github.com/gliderlabs/docker-alpine",
             "docker": {
                 "url": "https://hub.docker.com/alpine",
                 "version": "3.7.0",
