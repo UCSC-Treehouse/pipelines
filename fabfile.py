@@ -1,24 +1,43 @@
 """
 Treeshop: The Treehouse Workshop
 
-Experimental fabric based automation to process
-a manifest and run pipelines via docker-machine.
+Experimental fabric based automation to process samples on a docker-machine cluster.
 
-NOTE: This is a bit of a rambling hack and very much
-hard coded and idiosyncratic to the current set of
-Treehouse pipelines and files they use. YMMV.
+NOTE: This is crafted code primarily used internal to Treehouse and assumes
+quite a few things about the layout of primary and secondary files both
+on a shared file server and object store. If you are not familiar with
+any of these it is reccomended to stick with the Makefile for sample by sample
+processing on the command line.
+
+Storage Hierarchy:
+
+Samples and outputs are managed on disk or S3 with the following hierarchy:
+
+primary/
+    original/
+        id/
+           _R1/_R2 .fastq.gz
+    derived/
+        id/
+           _R1/_R2 .fastq.gz (only if original needs grooming)
+
+downstream/
+    id/
+        secondary/
+            pipeline-name-version-hash/
+        tertiary/
+
 """
 import os
-import re
 import datetime
-import dateutil.parser
-import csv
 import json
-import itertools
-import fnmatch
-from fabric.api import env, local, run, sudo, runs_once, parallel, warn_only, cd
-from fabric.contrib.files import exists
+import glob
+from fabric.api import env, local, run, sudo, runs_once, parallel, warn_only, cd, settings
 from fabric.operations import put, get
+
+# To debug communication issues un-comment the following
+# import logging
+# logging.basicConfig(level=logging.DEBUG)
 
 """
 Setup the fabric hosts environment using docker-machine ip addresses as hostnames are not
@@ -28,14 +47,18 @@ on openstack the driver deletes it on termination.
 
 
 def find_machines():
+
     """ Fill in host globals from docker-machine """
     env.user = "ubuntu"
-    env.hostnames = local("docker-machine ls --filter state=Running --format '{{.Name}}'",
-                          capture=True).split("\n")
-    env.hosts = re.findall(r'[0-9]+(?:\.[0-9]+){3}',
-                           local("docker-machine ls --filter state=Running --format '{{.URL}}'",
-                                 capture=True))
-    env.key_filename = ["~/.docker/machine/machines/{}/id_rsa".format(m) for m in env.hostnames]
+    machines = [json.loads(open(m).read())["Driver"]
+                for m in glob.glob(os.path.expanduser("~/.docker/machine/machines/*/config.json"))]
+    env.hostnames = [m["MachineName"] for m in machines
+                     if not env.hosts or m["MachineName"] in env.hosts]
+    env.hosts = [m["IPAddress"] for m in machines
+                 if not env.hosts or m["MachineName"] in env.hosts]
+    # Use single key due to https://github.com/UCSC-Treehouse/pipelines/issues/5
+    # env.key_filename = [m["SSHKeyPath"] for m in machines]
+    env.key_filename = "~/.ssh/id_rsa"
 
 
 find_machines()
@@ -48,6 +71,7 @@ def up(count=1):
     for i in range(int(count)):
         hostname = "{}-treeshop-{:%Y%m%d-%H%M%S}".format(
             os.environ["USER"], datetime.datetime.now())
+        # Create a new keypair per machine due to https://github.com/docker/machine/issues/3261
         local("""
               docker-machine create --driver openstack \
               --openstack-tenant-name treehouse \
@@ -59,6 +83,10 @@ def up(count=1):
               --openstack-flavor-name z1.medium \
               {}
               """.format(hostname))
+
+        # Copy over single key due to https://github.com/UCSC-Treehouse/pipelines/issues/5
+        local("cat ~/.ssh/id_rsa.pub" +
+              "| docker-machine ssh {} 'cat >> ~/.ssh/authorized_keys'".format(hostname))
 
     # In case additional commands are called after up
     find_machines()
@@ -82,14 +110,8 @@ def machines():
 
 
 def top():
-    """ Get list of docker containers and top 3 processes """
+    """ Get list of docker containers """
     run("docker ps")
-    run("top -b -n 1 | head -n 12  | tail -n 3")
-
-
-def push():
-    """ Push Makefile convenience while iterating """
-    put("{}/Makefile".format(os.path.dirname(env.real_fabfile)), "/mnt")
 
 
 @parallel
@@ -140,176 +162,171 @@ def reset():
 
 
 @parallel
-def process(manifest="manifest.tsv", outputs=".",
-            expression="True", fusions="True", variants="True", limit=None):
-    """ Process on all the samples in 'manifest' """
+def process(manifest="manifest.txt", base=".", checksum_only="False"):
+    """ Process all ids listed in 'manifest' """
 
     def log_error(message):
         print(message)
-        with open("{}/errors.txt".format(outputs), "a") as error_log:
+        with open("errors.txt", "a") as error_log:
             error_log.write(message + "\n")
 
-    print("Processing starting on {}".format(env.host))
+    # Read ids and pick every #hosts to allocate round robin to each machine
+    with open(manifest) as f:
+        ids = sorted([word.strip() for line in f.readlines() for word in line.split(',')
+                      if word.strip()])[env.hosts.index(env.host)::len(env.hosts)]
 
-    base = os.path.split(outputs)[0]
-    print("Using {} as base for all paths".format(base))
+    # Look for all fastq's prioritizing derived over original
+    samples = [{"id": id, "fastqs": [os.path.relpath(p, base) for p in sorted(
+                    glob.glob("{}/primary/*/{}/*.fastq.*".format(base, id))
+                    + glob.glob("{}/primary/*/{}/*.fq.*".format(base, id)))[:2]]} for id in ids]
 
-    # Each machine will process every #hosts samples
-    for sample in itertools.islice(csv.DictReader(open(manifest, "rU"), delimiter="\t"),
-                                   env.hosts.index(env.host),
-                                   int(limit) if limit else None, len(env.hosts)):
-        sample_id = sample["Submitter Sample ID"]
-        sample_files = map(str.strip, sample["File Path"].split(","))
-        print("{} processing {}".format(env.host, sample_id))
+    for sample in samples:
+        if len(sample["fastqs"]) != 2:
+            log_error("Too many or few fastqs for {}: {}".format(sample["id"], sample["fastqs"]))
+            continue
 
-        # See if all the files exist
-        for sample in sample_files:
-            if not os.path.isfile(sample):
-                log_error("{} for {} does not exist".format(sample, sample_id))
-                continue
+    print("Samples to be processed on {}:".format(env.host), samples)
+
+    # Copy Makefile in case we changed it will developing...
+    put("{}/Makefile".format(os.path.dirname(env.real_fabfile)), "/mnt")
+
+    for sample in samples:
+        print("{} processing {}".format(env.host, sample))
 
         # Reset machine clearing all output, samples, and killing dockers
         reset()
 
+        # Copy the fastqs over
+        run("mkdir -p /mnt/samples")
+        for fastq in sample["fastqs"]:
+            print("Copying fastq {} to cluster machine....".format(fastq))
+            put("{}/{}".format(base, fastq), "/mnt/samples/{}".format(os.path.basename(fastq)))
+
+        # Create output parent
+        output = "{}/downstream/{}/secondary".format(base, sample["id"])
+        local("mkdir -p {}".format(output))
+
+        # Initialize methods.json
         methods = {"user": os.environ["USER"],
                    "treeshop_version": local(
                       "git --work-tree={0} --git-dir {0}/.git describe --always".format(
                           os.path.dirname(__file__)), capture=True),
-                   "sample_id": sample_id,
-                   "inputs": [os.path.relpath(s, base) for s in sample_files]}
+                   "sample_id": sample["id"], "inputs": sample["fastqs"]}
 
-        # Create folder on storage for results named after sample id
-        # Wait until now in case something above fails so we don't have
-        # an empty directory
-        results = "{}/{}/secondary".format(outputs, sample_id)
-        local("mkdir -p {}".format(results))
-
-        with cd("/mnt"):
-            # Copy fastqs over to cluster machine
-            if len(sample_files) != 2:
-                log_error("Expected 2 samples files {} {}".format(sample_id, sample_files))
+        # Calculate checksums
+        methods["start"] = datetime.datetime.utcnow().isoformat()
+        with settings(warn_only=True):
+            result = run("cd /mnt && make checksums")
+            if result.failed:
+                log_error("{} Failed checksums: {}".format(sample["id"], result))
                 continue
 
-            run("mkdir -p /mnt/samples")
-            if expression == "True" or fusions == "True":
-                for fastq in sample_files:
-                    if not exists("samples/{}".format(os.path.basename(fastq))):
-                        print("Copying file {} to cluster machine....".format(fastq))
-                        put(fastq, "samples/{}".format(os.path.basename(fastq)))
+        dest = "{}/md5sum-3.7.0-ccba511".format(output)
+        local("mkdir -p {}".format(dest))
 
-            # Run the pipelines, backhaul results, write methods.json
-            if expression == "True":
-                methods["start"] = datetime.datetime.utcnow().isoformat()
-                run("make expression")
-                # Unpack outputs and normalize names so we don't have sample id in them
-                with cd("/mnt/outputs/expression"):
-                    run("tar -xvf *.tar.gz --strip 1")
-                    run("rm *.tar.gz")
-                    run("mv *.sortedByCoord.md.bam sortedByCoord.md.bam")
+        # Copy output back
+        methods["outputs"] = [
+            os.path.relpath(p, base) for p in get("/mnt/outputs/checksums/*", dest)]
+        methods["end"] = datetime.datetime.utcnow().isoformat()
+        methods["pipeline"] = {
+            "source": "https://github.com/gliderlabs/docker-alpine",
+            "docker": {
+                "url": "https://hub.docker.com/alpine",
+                "version": "3.7.0",
+                "hash": "sha256:ccba511b1d6b5f1d83825a94f9d5b05528db456d9cf14a1ea1db892c939cda64" # NOQA
+            }
+        }
+        with open("{}/methods.json".format(dest), "w") as f:
+            f.write(json.dumps(methods, indent=4))
 
-                dest = "{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9".format(results)
-                local("mkdir -p {}".format(dest))
+        if checksum_only == "True":
+            continue
 
-                methods["outputs"] = [
-                    os.path.relpath(p, base) for p in get("/mnt/outputs/expression/*", dest)]
-                methods["end"] = datetime.datetime.utcnow().isoformat()
-                methods["pipeline"] = {
-                    "source": "https://github.com/BD2KGenomics/toil-rnaseq",
-                    "docker": {
-                        "url": "https://quay.io/ucsc_cgl/rnaseq-cgl-pipeline",
-                        "version": "3.3.4-1.12.3",
-                        "hash": "sha256:785eee9f750ab91078d84d1ee779b6f74717eafc09e49da817af6b87619b0756" # NOQA
-                    }
-                }
-                with open("{}/methods.json".format(dest), "w") as f:
-                    f.write(json.dumps(methods, indent=4))
-
-            if fusions == "True":
-                methods["start"] = datetime.datetime.utcnow().isoformat()
-                run("make fusions")
-
-                dest = "{}/ucsctreehouse-fusion-0.1.0-3faac56".format(results)
-                local("mkdir -p {}".format(dest))
-
-                methods["outputs"] = [
-                    os.path.relpath(p, base) for p in get("/mnt/outputs/fusions/*", dest)]
-                methods["end"] = datetime.datetime.utcnow().isoformat()
-                methods["pipeline"] = {
-                    "source": "https://github.com/UCSC-Treehouse/fusion",
-                    "docker": {
-                        "url": "https://hub.docker.com/r/ucsctreehouse/fusion",
-                        "version": "0.1.0",
-                        "hash": "sha256:3faac562666363fa4a80303943a8f5c14854a5f458676e1248a956c13fb534fd" # NOQA
-                    }
-                }
-                with open("{}/methods.json".format(dest), "w") as f:
-                    f.write(json.dumps(methods, indent=4))
-
-            if variants == "True":
-                # Hack code to push bam back to instance if just running variants
-                # local_bam = "{}/expression/{}.sortedByCoord.md.bam".format(results, sample_id)
-                # remote_bam = "outputs/expression/{}.sortedByCoord.md.bam".format(sample_id)
-                # print("bams:", local_bam, remote_bam)
-                # if not exists(remote_bam) and os.path.isfile(local_bam):
-                #     print("Pushing bam")
-                #     run("mkdir -p /mnt/outputs/expression")
-                #     put(local_bam, remote_bam)
-                # else:
-                #     print("ERROR: Missing BAM: {}".format(local_bam))
-                #     return
-                methods["start"] = datetime.datetime.utcnow().isoformat()
-                run("make variants")
-
-                dest = "{}/ucsctreehouse-mini-var-call-0.0.1-1976429".format(results)
-                local("mkdir -p {}".format(dest))
-
-                methods["inputs"].append(
-                    "{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9/sortedByCoord.md.bam".format(
-                        os.path.relpath(results, base)))
-                methods["outputs"] = [
-                    os.path.relpath(p, base) for p in get("/mnt/outputs/variants/*", dest)]
-                methods["end"] = datetime.datetime.utcnow().isoformat()
-                methods["pipeline"] = {
-                    "source": "https://github.com/UCSC-Treehouse/mini-var-call",
-                    "docker": {
-                        "url": "https://hub.docker.com/r/ucsctreehouse/mini-var-call",
-                        "version": "0.0.1",
-                        "hash": "sha256:197642937956ae73465ad2ef4b42501681ffc3ef07fecb703f58a3487eab37ff" # NOQA
-                    }
-                }
-                with open("{}/methods.json".format(dest), "w") as f:
-                    f.write(json.dumps(methods, indent=4))
-
-
-@runs_once
-def check(manifest="manifest.tsv"):
-    """ Check that each file in manifest exists """
-    for sample in csv.DictReader(open(manifest, "rU"), delimiter="\t"):
-        sample_id = sample["Submitter Sample ID"]
-        sample_files = map(str.strip, sample["File Path"].split(","))
-
-        # See if all the files exist
-        if sample_files[0] == sample_files[1]:
-            print("WARNING: {} has same file listed for each pair".format(sample_id))
-
-        for sample in sample_files:
-            if not os.path.isfile(sample):
-                print("WARNING: {} for {} does not exist".format(sample, sample_id))
+        # Calculate expression
+        methods["start"] = datetime.datetime.utcnow().isoformat()
+        with settings(warn_only=True):
+            result = run("cd /mnt && make expression")
+            if result.failed:
+                log_error("{} Failed expression: {}".format(sample["id"], result))
                 continue
-            else:
-                print("{} exists".format(sample))
 
+        # Create output parent - wait till now in case first pipeline halted
+        output = "{}/downstream/{}/secondary".format(base, sample["id"])
+        local("mkdir -p {}".format(output))
 
-@runs_once
-def stats():
-    """ Print out stats for all the samples run in the current directory """
-    methods = []
-    for root, dirnames, filenames in os.walk('.'):
-        for filename in fnmatch.filter(filenames, 'methods.json'):
-            methods.append(json.loads(open(os.path.join(root, filename)).read()))
+        # Unpack outputs and normalize names so we don't have sample id in them
+        with cd("/mnt/outputs/expression"):
+            run("tar -xvf *.tar.gz --strip 1")
+            run("rm *.tar.gz")
+            run("mv *.sortedByCoord.md.bam sortedByCoord.md.bam")
 
-    durations = [(dateutil.parser.parse(m["end"])
-                  - dateutil.parser.parse(m["start"])).total_seconds()/(60*60) for m in methods]
-    print("Per sample Runtimes: ", [d for d in durations])
-    print("Average/Min/Max Runtime: {}/{}/{}".format(
-        sum(durations) / len(durations), min(durations), max(durations)))
+        dest = "{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9".format(output)
+        local("mkdir -p {}".format(dest))
+
+        # Copy output back
+        methods["outputs"] = [
+            os.path.relpath(p, base) for p in get("/mnt/outputs/expression/*", dest)]
+        methods["end"] = datetime.datetime.utcnow().isoformat()
+        methods["pipeline"] = {
+            "source": "https://github.com/BD2KGenomics/toil-rnaseq",
+            "docker": {
+                "url": "https://quay.io/ucsc_cgl/rnaseq-cgl-pipeline",
+                "version": "3.3.4-1.12.3",
+                "hash": "sha256:785eee9f750ab91078d84d1ee779b6f74717eafc09e49da817af6b87619b0756" # NOQA
+            }
+        }
+        with open("{}/methods.json".format(dest), "w") as f:
+            f.write(json.dumps(methods, indent=4))
+
+        # Calculate fusion
+        methods["start"] = datetime.datetime.utcnow().isoformat()
+        with settings(warn_only=True):
+            result = run("cd /mnt && make fusions")
+            if result.failed:
+                log_error("{} Failed fusions: {}".format(sample["id"], result))
+                continue
+
+        dest = "{}/ucsctreehouse-fusion-0.1.0-3faac56".format(output)
+        local("mkdir -p {}".format(dest))
+
+        methods["outputs"] = [
+            os.path.relpath(p, base) for p in get("/mnt/outputs/fusions/*", dest)]
+        methods["end"] = datetime.datetime.utcnow().isoformat()
+        methods["pipeline"] = {
+            "source": "https://github.com/UCSC-Treehouse/fusion",
+            "docker": {
+                "url": "https://hub.docker.com/r/ucsctreehouse/fusion",
+                "version": "0.1.0",
+                "hash": "sha256:3faac562666363fa4a80303943a8f5c14854a5f458676e1248a956c13fb534fd" # NOQA
+            }
+        }
+        with open("{}/methods.json".format(dest), "w") as f:
+            f.write(json.dumps(methods, indent=4))
+
+        # Calculate variants
+        methods["start"] = datetime.datetime.utcnow().isoformat()
+        with settings(warn_only=True):
+            result = run("cd /mnt && make variants")
+            if result.failed:
+                log_error("{} Failed variants: {}".format(sample["id"], result))
+                continue
+
+        dest = "{}/ucsctreehouse-mini-var-call-0.0.1-1976429".format(output)
+        local("mkdir -p {}".format(dest))
+
+        methods["inputs"].append(
+            "{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9/sortedByCoord.md.bam".format(
+                os.path.relpath(output, base)))
+        methods["outputs"] = [
+            os.path.relpath(p, base) for p in get("/mnt/outputs/variants/*", dest)]
+        methods["end"] = datetime.datetime.utcnow().isoformat()
+        methods["pipeline"] = {
+            "source": "https://github.com/UCSC-Treehouse/mini-var-call",
+            "docker": {
+                "url": "https://hub.docker.com/r/ucsctreehouse/mini-var-call",
+                "version": "0.0.1",
+                "hash": "sha256:197642937956ae73465ad2ef4b42501681ffc3ef07fecb703f58a3487eab37ff" # NOQA
+            }
+        }
+        with open("{}/methods.json".format(dest), "w") as f:
+            f.write(json.dumps(methods, indent=4))
