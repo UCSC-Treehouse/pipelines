@@ -1,5 +1,3 @@
-#Run the pipelines, backhaul results, write methods.json UCSC Treehouse Pipelines
-
 Makefile to run the expression, fusion and variant secondary pipelines used by [Treehouse](https://treehouse.soe.ucsc.edu/) on a single machine from the command line.
 
 ## Requirements
@@ -17,7 +15,7 @@ Clone this repository and then run 'make':
     git clone https://github.com/UCSC-Treehouse/pipelines.git
     make
 
-References will be downloaded, verified via MD5, and then the included TEST paird fastqs will be run through the pipelines and outputs verified. This will take approximately 20-30 minutes on a 16 core machine excluding reference file download time. At the end you should see:
+References will be downloaded, verified via MD5, and then the included TEST paired fastqs will be run through the pipelines and outputs verified. This will take approximately 20-30 minutes on a 16 core machine excluding reference file download time. At the end you should see:
 
     Verifying md5 of output of TEST file
     tar -xOzvf outputs/expression/TEST_R1merged.tar.gz FAIL.TEST_R1merged/RSEM/rsem_genes.results |
@@ -29,7 +27,7 @@ References will be downloaded, verified via MD5, and then the included TEST pair
     tail -n 10 outputs/variants/mini.ann.vcf | md5sum -c md5/variants.md5
     -: OK
     
-NOTE: Fail is expected as the test file contains too few reads to pass bam qc
+NOTE: Fail is expected as the test file contains too few reads to pass our qc
 
 Under outputs you should see the following:
 
