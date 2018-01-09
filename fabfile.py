@@ -16,7 +16,7 @@ Samples and outputs are managed on disk or S3 with the following hierarchy:
 primary/
     original/
         id/
-           _R1/_R2 .fastq.gz
+           _R1/_R2 .fastq.gz or .bam
     derived/
         id/
            _R1/_R2 .fastq.gz (only if original needs grooming)
@@ -141,6 +141,13 @@ def configure():
 
 
 @parallel
+def push():
+    """ Update Makefile for use when iterating and debugging """
+    # Copy Makefile in case we changed it while developing...
+    put("{}/Makefile".format(os.path.dirname(env.real_fabfile)), "/mnt")
+
+
+@parallel
 def reference():
     """ Configure each machine with reference files. """
     put("{}/md5".format(os.path.dirname(env.real_fabfile)), "/mnt")
@@ -162,7 +169,7 @@ def reset():
 
 
 @parallel
-def process(manifest="manifest.txt", base=".", checksum_only="False"):
+def process(manifest="manifest.tsv", base=".", checksum_only="False"):
     """ Process all ids listed in 'manifest' """
 
     def log_error(message):
@@ -174,11 +181,22 @@ def process(manifest="manifest.txt", base=".", checksum_only="False"):
     with open(manifest) as f:
         ids = sorted([word.strip() for line in f.readlines() for word in line.split(',')
                       if word.strip()])[env.hosts.index(env.host)::len(env.hosts)]
+    # ids = ["TEST", "TEST1", "TEST2", "TEST3", "TEST4"]
 
     # Look for all fastq's prioritizing derived over original
+
     samples = [{"id": id, "fastqs": [os.path.relpath(p, base) for p in sorted(
                     glob.glob("{}/primary/*/{}/*.fastq.*".format(base, id))
                     + glob.glob("{}/primary/*/{}/*.fq.*".format(base, id)))[:2]]} for id in ids]
+    # samples = [{"id": id,
+    #             "bams": [os.path.relpath(p, base) for p in sorted(
+    #                 glob.glob("{}/primary/*/{}/*.bam".format(base, id)))],
+    #             "fastqs": [os.path.relpath(p, base) for p in sorted(
+    #                 glob.glob("{}/primary/*/{}/*.fastq.*".format(base, id))
+    #                 + glob.glob("{}/primary/*/{}/*.fq.*".format(base, id)))]} for id in ids]
+
+    # print(samples)
+    # return
 
     for sample in samples:
         if len(sample["fastqs"]) != 2:
@@ -187,7 +205,7 @@ def process(manifest="manifest.txt", base=".", checksum_only="False"):
 
     print("Samples to be processed on {}:".format(env.host), samples)
 
-    # Copy Makefile in case we changed it will developing...
+    # Copy Makefile in case we changed it while developing...
     put("{}/Makefile".format(os.path.dirname(env.real_fabfile)), "/mnt")
 
     for sample in samples:
@@ -211,7 +229,7 @@ def process(manifest="manifest.txt", base=".", checksum_only="False"):
                    "treeshop_version": local(
                       "git --work-tree={0} --git-dir {0}/.git describe --always".format(
                           os.path.dirname(__file__)), capture=True),
-                   "sample_id": sample["id"], "inputs": sample["fastqs"]}
+                   "sample_id": sample["id"]}
 
         # Calculate checksums
         methods["start"] = datetime.datetime.utcnow().isoformat()
@@ -221,10 +239,10 @@ def process(manifest="manifest.txt", base=".", checksum_only="False"):
                 log_error("{} Failed checksums: {}".format(sample["id"], result))
                 continue
 
+        # Update methods.json and copy output back
         dest = "{}/md5sum-3.7.0-ccba511".format(output)
         local("mkdir -p {}".format(dest))
-
-        # Copy output back
+        methods["inputs"] = sample["fastqs"]
         methods["outputs"] = [
             os.path.relpath(p, base) for p in get("/mnt/outputs/checksums/*", dest)]
         methods["end"] = datetime.datetime.utcnow().isoformat()
@@ -258,12 +276,12 @@ def process(manifest="manifest.txt", base=".", checksum_only="False"):
         with cd("/mnt/outputs/expression"):
             run("tar -xvf *.tar.gz --strip 1")
             run("rm *.tar.gz")
-            run("mv *.sortedByCoord.md.bam sortedByCoord.md.bam")
+            run("mv *.sorted.bam sorted.bam")
 
+        # Update methods.json and copy output back
         dest = "{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9".format(output)
         local("mkdir -p {}".format(dest))
-
-        # Copy output back
+        methods["inputs"] = sample["fastqs"]
         methods["outputs"] = [
             os.path.relpath(p, base) for p in get("/mnt/outputs/expression/*", dest)]
         methods["end"] = datetime.datetime.utcnow().isoformat()
@@ -278,6 +296,33 @@ def process(manifest="manifest.txt", base=".", checksum_only="False"):
         with open("{}/methods.json".format(dest), "w") as f:
             f.write(json.dumps(methods, indent=4))
 
+        # Calculate qc (bam-umend-qc)
+        methods["start"] = datetime.datetime.utcnow().isoformat()
+        with settings(warn_only=True):
+            result = run("cd /mnt && make qc")
+            if result.failed:
+                log_error("{} Failed qc: {}".format(sample["id"], result))
+                continue
+
+        # Update methods.json and copy output back
+        dest = "{}/ucsctreehouse-bam-umend-qc-1.1.0-0000000".format(output)
+        local("mkdir -p {}".format(dest))
+        methods["inputs"] = ["{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9/sorted.bam".format(
+                os.path.relpath(output, base))]
+        methods["outputs"] = [
+            os.path.relpath(p, base) for p in get("/mnt/outputs/qc/*", dest)]
+        methods["end"] = datetime.datetime.utcnow().isoformat()
+        methods["pipeline"] = {
+            "source": "https://github.com/UCSC-Treehouse/bam-umend-qc",
+            "docker": {
+                "url": "https://hub.docker.com/r/ucsctreehouse/bam-umend-qc",
+                "version": "1.1.0",
+                "hash": "sha256:197642937956ae73465ad2ef4b42501681ffc3ef07fecb703f58a3487eab37ff" # NOQA
+            }
+        }
+        with open("{}/methods.json".format(dest), "w") as f:
+            f.write(json.dumps(methods, indent=4))
+
         # Calculate fusion
         methods["start"] = datetime.datetime.utcnow().isoformat()
         with settings(warn_only=True):
@@ -286,9 +331,10 @@ def process(manifest="manifest.txt", base=".", checksum_only="False"):
                 log_error("{} Failed fusions: {}".format(sample["id"], result))
                 continue
 
+        # Update methods.json and copy output back
         dest = "{}/ucsctreehouse-fusion-0.1.0-3faac56".format(output)
         local("mkdir -p {}".format(dest))
-
+        methods["inputs"] = sample["fastqs"]
         methods["outputs"] = [
             os.path.relpath(p, base) for p in get("/mnt/outputs/fusions/*", dest)]
         methods["end"] = datetime.datetime.utcnow().isoformat()
@@ -311,12 +357,11 @@ def process(manifest="manifest.txt", base=".", checksum_only="False"):
                 log_error("{} Failed variants: {}".format(sample["id"], result))
                 continue
 
+        # Update methods.json and copy output back
         dest = "{}/ucsctreehouse-mini-var-call-0.0.1-1976429".format(output)
         local("mkdir -p {}".format(dest))
-
-        methods["inputs"].append(
-            "{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9/sortedByCoord.md.bam".format(
-                os.path.relpath(output, base)))
+        methods["inputs"] = ["{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9/sorted.bam".format(
+                os.path.relpath(output, base))]
         methods["outputs"] = [
             os.path.relpath(p, base) for p in get("/mnt/outputs/variants/*", dest)]
         methods["end"] = datetime.datetime.utcnow().isoformat()

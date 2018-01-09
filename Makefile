@@ -7,7 +7,7 @@ R2 = $(shell find samples -iregex ".*?[_2|_R2]\..*?" | head -1)
 
 REF_BASE ?= "http://hgdownload.soe.ucsc.edu/treehouse/reference"
 
-all: reference expression fusions variants verify
+all: reference expression qc fusions variants verify
 
 reference:
 	echo "Downloading reference files from $(REF_BASE)..."
@@ -45,13 +45,20 @@ expression:
 		-v $(shell pwd)/references:/references \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		quay.io/ucsc_cgl/rnaseq-cgl-pipeline@sha256:785eee9f750ab91078d84d1ee779b6f74717eafc09e49da817af6b87619b0756 \
-			--bamqc \
 			--save-bam \
 			--star /references/starIndex_hg38_no_alt.tar.gz \
 			--rsem /references/rsem_ref_hg38_no_alt.tar.gz \
 			--kallisto /references/kallisto_hg38.idx \
 			--work_mount $(shell pwd)/outputs/expression \
 			--sample-paired $(R1),$(R2)
+
+qc:
+	echo "Running bam-umend-qc 1.1.0 pipeline on sorted bam from expression"
+	mkdir -p outputs/qc
+	docker run --rm \
+	  -v `pwd`/$(shell find outputs/expression/*sorted*):/inputs/sample.bam \
+		-v $(shell pwd)/outputs/qc:/outputs \
+		ucsctreehouse/bam-umend-qc /inputs/sample.bam /outputs
 
 fusions:
 	echo "Running fusion 0.1.0 pipeline on $(R1) and $(R2)"
@@ -73,7 +80,7 @@ variants:
 	mkdir -p outputs/variants
 	docker run --rm \
 		-v $(shell pwd)/references:/references \
-	  -v `pwd`/$(shell find outputs/expression/*sortedByCoord*):/inputs/sample.bam \
+	  -v `pwd`/$(shell find outputs/expression/*sorted*):/inputs/sample.bam \
 		-v $(shell pwd)/outputs/variants:/outputs \
 		ucsctreehouse/mini-var-call@sha256:197642937956ae73465ad2ef4b42501681ffc3ef07fecb703f58a3487eab37ff \
 			/references/GCA_000001405.15_GRCh38_no_alt_analysis_set.fa \
