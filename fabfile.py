@@ -177,36 +177,23 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
         with open("errors.txt", "a") as error_log:
             error_log.write(message + "\n")
 
+    # Copy Makefile in case we changed it while developing...
+    put("{}/Makefile".format(os.path.dirname(env.real_fabfile)), "/mnt")
+
     # Read ids and pick every #hosts to allocate round robin to each machine
     with open(manifest) as f:
         ids = sorted([word.strip() for line in f.readlines() for word in line.split(',')
                       if word.strip()])[env.hosts.index(env.host)::len(env.hosts)]
-    # ids = ["TEST", "TEST1", "TEST2", "TEST3", "TEST4"]
 
-    # Look for all fastq's prioritizing derived over original
-
-    samples = [{"id": id, "fastqs": [os.path.relpath(p, base) for p in sorted(
+    # Look for all bams and fastq's prioritizing derived over original
+    samples = [{"id": id,
+                "bams": [os.path.relpath(p, base) for p in sorted(
+                    glob.glob("{}/primary/*/{}/*.bam".format(base, id)))],
+                "fastqs": [os.path.relpath(p, base) for p in sorted(
                     glob.glob("{}/primary/*/{}/*.fastq.*".format(base, id))
-                    + glob.glob("{}/primary/*/{}/*.fq.*".format(base, id)))[:2]]} for id in ids]
-    # samples = [{"id": id,
-    #             "bams": [os.path.relpath(p, base) for p in sorted(
-    #                 glob.glob("{}/primary/*/{}/*.bam".format(base, id)))],
-    #             "fastqs": [os.path.relpath(p, base) for p in sorted(
-    #                 glob.glob("{}/primary/*/{}/*.fastq.*".format(base, id))
-    #                 + glob.glob("{}/primary/*/{}/*.fq.*".format(base, id)))]} for id in ids]
-
-    # print(samples)
-    # return
-
-    for sample in samples:
-        if len(sample["fastqs"]) != 2:
-            log_error("Too many or few fastqs for {}: {}".format(sample["id"], sample["fastqs"]))
-            continue
+                    + glob.glob("{}/primary/*/{}/*.fq.*".format(base, id)))]} for id in ids]
 
     print("Samples to be processed on {}:".format(env.host), samples)
-
-    # Copy Makefile in case we changed it while developing...
-    put("{}/Makefile".format(os.path.dirname(env.real_fabfile)), "/mnt")
 
     for sample in samples:
         print("{} processing {}".format(env.host, sample))
@@ -214,13 +201,37 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
         # Reset machine clearing all output, samples, and killing dockers
         reset()
 
-        # Copy the fastqs over
         run("mkdir -p /mnt/samples")
-        for fastq in sample["fastqs"]:
-            print("Copying fastq {} to cluster machine....".format(fastq))
-            put("{}/{}".format(base, fastq), "/mnt/samples/{}".format(os.path.basename(fastq)))
 
-        # Create output parent
+        if not sample["fastqs"] and not sample["bams"]:
+            log_error("Unable find any fastqs or bams associated with {}".format(sample["id"]))
+            continue
+        elif not sample["fastqs"] and sample["bams"]:
+            bam = os.path.basename(sample["bams"][0])
+            print("Converting {} to fastq for {}".format(bam, sample["id"]))
+            put("{}/{}".format(base, sample["bams"][0]), "/mnt/samples/")
+            with cd("/mnt/samples"):
+                run("""
+                    docker run --rm \
+                      -v /mnt/samples:/samples \
+                      quay.io/ucsc_cgl/samtools:1.5--98b58ba05641ee98fa98414ed28b53ac3048bc09 \
+                      fastq -1 /samples/{0}.R1.fq.gz -2 /samples/{0}.R2.fq.gz /samples/{1}
+                    """.format(bam[:bam.index(".")], bam))
+            local("mkdir -p {}/primary/derived/{}".format(base, sample["id"]))
+            print("Copying fastqs back for archiving")
+            sample["fastqs"] = get(
+                "/mnt/samples/*.fastq.gz", "{}/primary/derived/{}/".format(base, sample["id"]))
+            run("rm /mnt/samples/*.bam")  # Free up space
+        elif len(sample["fastqs"]) < 2:
+            log_error("Only found a single fastq for {}".format(sample["id"]))
+            continue
+        else:
+            # Copy the fastqs over
+            for fastq in sample["fastqs"]:
+                print("Copying fastq {} to cluster machine....".format(fastq))
+                put("{}/{}".format(base, fastq), "/mnt/samples/")
+
+        # Create downstream output parent
         output = "{}/downstream/{}/secondary".format(base, sample["id"])
         local("mkdir -p {}".format(output))
 
