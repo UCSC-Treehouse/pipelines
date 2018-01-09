@@ -58,7 +58,8 @@ qc:
 	docker run --rm \
 	  -v `pwd`/$(shell find outputs/expression/*sorted*):/inputs/sample.bam \
 		-v $(shell pwd)/outputs/qc:/outputs \
-		ucsctreehouse/bam-umend-qc /inputs/sample.bam /outputs
+		ucsctreehouse/bam-umend-qc@sha256:9a65f4d5fe98de717db2e9f800c391dce02963ab1e3fb0ffca8908a5a29ee65d \
+			/inputs/sample.bam /outputs
 
 fusions:
 	echo "Running fusion 0.1.0 pipeline on $(R1) and $(R2)"

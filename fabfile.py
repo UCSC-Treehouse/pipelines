@@ -220,14 +220,14 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
             local("mkdir -p {}/primary/derived/{}".format(base, sample["id"]))
             print("Copying fastqs back for archiving")
             sample["fastqs"] = get(
-                "/mnt/samples/*.fastq.gz", "{}/primary/derived/{}/".format(base, sample["id"]))
+                "/mnt/samples/*.fq.gz", "{}/primary/derived/{}/".format(base, sample["id"]))
             run("rm /mnt/samples/*.bam")  # Free up space
         elif len(sample["fastqs"]) < 2:
             log_error("Only found a single fastq for {}".format(sample["id"]))
             continue
         else:
             # Copy the fastqs over
-            for fastq in sample["fastqs"]:
+            for fastq in sample["fastqs"][:2]:
                 print("Copying fastq {} to cluster machine....".format(fastq))
                 put("{}/{}".format(base, fastq), "/mnt/samples/")
 
@@ -316,7 +316,7 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
                 continue
 
         # Update methods.json and copy output back
-        dest = "{}/ucsctreehouse-bam-umend-qc-1.1.0-0000000".format(output)
+        dest = "{}/ucsctreehouse-bam-umend-qc-1.1.0-9a65f4d".format(output)
         local("mkdir -p {}".format(dest))
         methods["inputs"] = ["{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9/sorted.bam".format(
                 os.path.relpath(output, base))]
@@ -328,7 +328,7 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
             "docker": {
                 "url": "https://hub.docker.com/r/ucsctreehouse/bam-umend-qc",
                 "version": "1.1.0",
-                "hash": "sha256:197642937956ae73465ad2ef4b42501681ffc3ef07fecb703f58a3487eab37ff" # NOQA
+                "hash": "sha256:9a65f4d5fe98de717db2e9f800c391dce02963ab1e3fb0ffca8908a5a29ee65d" # NOQA
             }
         }
         with open("{}/methods.json".format(dest), "w") as f:
