@@ -56,9 +56,10 @@ qc:
 	echo "Running bam-umend-qc 1.1.0 pipeline on sorted bam from expression"
 	mkdir -p outputs/qc
 	docker run --rm \
-	  -v `pwd`/$(shell find outputs/expression/*sorted*):/inputs/sample.bam \
+	  -v `pwd`/$(shell find outputs/expression/*.bam):/inputs/sample.bam \
+		-v $(shell pwd)/outputs/qc:/tmp \
 		-v $(shell pwd)/outputs/qc:/outputs \
-		ucsctreehouse/bam-umend-qc@sha256:9a65f4d5fe98de717db2e9f800c391dce02963ab1e3fb0ffca8908a5a29ee65d \
+		ucsctreehouse/bam-umend-qc@sha256:cc481e413735e36b96caaa7fff977e591983e08eb5a625fed3aa90dd7108817e \
 			/inputs/sample.bam /outputs
 
 fusions:

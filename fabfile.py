@@ -316,7 +316,7 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
                 continue
 
         # Update methods.json and copy output back
-        dest = "{}/ucsctreehouse-bam-umend-qc-1.1.0-9a65f4d".format(output)
+        dest = "{}/ucsctreehouse-bam-umend-qc-1.1.0-cc481e4".format(output)
         local("mkdir -p {}".format(dest))
         methods["inputs"] = ["{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9/sorted.bam".format(
                 os.path.relpath(output, base))]
@@ -328,7 +328,7 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
             "docker": {
                 "url": "https://hub.docker.com/r/ucsctreehouse/bam-umend-qc",
                 "version": "1.1.0",
-                "hash": "sha256:9a65f4d5fe98de717db2e9f800c391dce02963ab1e3fb0ffca8908a5a29ee65d" # NOQA
+                "hash": "sha256:cc481e413735e36b96caaa7fff977e591983e08eb5a625fed3aa90dd7108817e" # NOQA
             }
         }
         with open("{}/methods.json".format(dest), "w") as f:
