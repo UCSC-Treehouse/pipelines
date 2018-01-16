@@ -211,16 +211,16 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
             print("Converting {} to fastq for {}".format(bam, sample["id"]))
             put("{}/{}".format(base, sample["bams"][0]), "/mnt/samples/")
             with cd("/mnt/samples"):
-                run("""
-                    docker run --rm \
-                      -v /mnt/samples:/samples \
-                      quay.io/ucsc_cgl/samtools:1.5--98b58ba05641ee98fa98414ed28b53ac3048bc09 \
-                      fastq -1 /samples/{0}.R1.fq.gz -2 /samples/{0}.R2.fq.gz /samples/{1}
-                    """.format(bam[:bam.index(".")], bam))
+                run("docker run --rm" +
+                    " -v /mnt/samples:/samples" +
+                    " quay.io/ucsc_cgl/samtools@sha256:" +
+                    "90528e39e246dc37421fe393795aa37fa1156d0dff59742eb243f01d2a27322e"
+                    " fastq -1 /samples/{0}.R1.fastq.gz -2 /samples/{0}.R2.fastq.gz /samples/{1}"
+                    .format(bam[:bam.index(".")], bam))
             local("mkdir -p {}/primary/derived/{}".format(base, sample["id"]))
             print("Copying fastqs back for archiving")
             sample["fastqs"] = get(
-                "/mnt/samples/*.fq.gz", "{}/primary/derived/{}/".format(base, sample["id"]))
+                "/mnt/samples/*.fastq.gz", "{}/primary/derived/{}/".format(base, sample["id"]))
             run("rm /mnt/samples/*.bam")  # Free up space
         elif len(sample["fastqs"]) < 2:
             log_error("Only found a single fastq for {}".format(sample["id"]))
