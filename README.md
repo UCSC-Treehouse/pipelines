@@ -39,19 +39,22 @@ Under outputs you should see the following:
     │   ├── Log.final.out
     │   ├── star-fusion-gene-list-filtered.final
     │   └── star-fusion-non-filtered.final
+    ├── qc
+    │   ├── bam_umend_qc.json
+    │   ├── bam_umend_qc.tsv
+    │   └── readDist.txt
     └── variants
         └── mini.ann.vcf
 
 Replace the TEST files under samples/ with your own pair of fastq's with _1/_2 or _R1/_R2 in their name and then:
 
-    make expression fusions variants
+    make expression qc fusions variants
 
-A typical single sample running all three pipelines will take about 18 hours depending on the size/depth. Of this around 8 hours is expression, 8 hours is bam qc, 2 hours is fusion and a few minutes for variants. 
+A typical single sample running all three pipelines will take about 18 hours depending on the size/depth. Of this around 8 hours is expression, 1.5 hours is qc, 2 hours is fusion and a few minutes for variants. 
 
-## Expression and BAM QC Outputs
+## Expression Outputs
 
-The output is a tar.gz file with a variety of results merged. If bamqc fails then 'FAIL.' will be
-prepended to the folder name in the tar file:
+The output is a tar.gz file with a variety of results merged. 
 
     TEST_R1merged/RSEM/rsem_genes.results
     TEST_R1merged/RSEM/rsem_isoforms.results
@@ -64,10 +67,6 @@ prepended to the folder name in the tar file:
     TEST_R1merged/QC/fastQC/R1_fastqc.zip
     TEST_R1merged/QC/fastQC/R2_fastqc.html
     TEST_R1merged/QC/fastQC/R2_fastqc.zip
-    TEST_R1merged/QC/bamQC/readDist.txt
-    TEST_R1merged/QC/bamQC/rnaAligned.out.md.sorted.geneBodyCoverage.curves.pdf
-    TEST_R1merged/QC/bamQC/rnaAligned.out.md.sorted.geneBodyCoverage.txt
-    TEST_R1merged/QC/bamQC/readDist.txt_FAIL_qc.txt
     TEST_R1merged/QC/STAR/Log.final.out
     TEST_R1merged/QC/STAR/SJ.out.tab
 
@@ -77,14 +76,8 @@ For additional information and source code for each pipeline see the following g
 
 [https://github.com/BD2KGenomics/toil-rnaseq]
 
-[https://github.com/UCSC-Treehouse/bam_qc]
+[https://github.com/UCSC-Treehouse/bam-umend-qc]
 
 [https://github.com/UCSC-Treehouse/fusion]
 
 [https://github.com/UCSC-Treehouse/mini-var-call]
-
-## Options
-
-You can run off bam qc for faster expression run times by removing --bamqc. But note that you will not be able to run the variant pipeline as it requires the sorted bam file that bamqc generates.
-
-Add --logInfo to the rnaseq docker call for additional debugging messages.
