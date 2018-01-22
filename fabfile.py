@@ -32,6 +32,9 @@ import os
 import datetime
 import json
 import glob
+import re
+import boto3
+from botocore.config import Config
 from fabric.api import env, local, run, sudo, runs_once, parallel, warn_only, cd, settings
 from fabric.operations import put, get
 
@@ -172,6 +175,54 @@ def reset():
 
         # Do we need this? Some pipeline looks like its changing it to root
         sudo("chown -R ubuntu:ubuntu /mnt")
+
+
+@parallel
+def process_ceph(manifest="manifest.tsv", base=".", checksum_only="False"):
+    boto3.setup_default_session(profile_name="ceph")
+    s3 = boto3.resource("s3", endpoint_url="http://ceph-gw-01.pod",
+                        config=Config(signature_version='s3'))
+    fastqs = sorted([obj.key for obj in s3.Bucket("CCLE").objects.all()
+                     if re.search(r"fastq|fq", obj.key)])
+    print("Found {} fastq".format(len(fastqs)))
+    print(fastqs[0:8])
+
+    pairs = [(fastqs[i], fastqs[i+1]) for i in range(0, len(fastqs), 2)]
+    print("Pairs:", pairs[0:4])
+
+    # DEBUG: Only do a few and skip that first large one
+    pairs = pairs[1:3]
+
+    for pair in pairs[env.hosts.index(env.host)::len(env.hosts)]:
+        print("Processing {} on {}".format(pair, env.host))
+        reset()
+
+        # Copy files from s3 down to machine
+        run("""
+            aws --profile ceph --endpoint http://ceph-gw-01.pod/ \
+                s3 cp --only-show-errors s3://CCLE/{} /mnt/samples/
+            """.format(pair[0]))
+        run("""
+            aws --profile ceph --endpoint http://ceph-gw-01.pod/ \
+                s3 cp --only-show-errors s3://CCLE/{} /mnt/samples/
+            """.format(pair[1]))
+
+        # Run checksum as a test
+        with settings(warn_only=True):
+            result = run("cd /mnt && make checksums")
+            if result.failed:
+                print("{} Failed checksums: {}".format(pair, result))
+                continue
+
+        # Copy the results back to pstore
+        sample_id = pair[0].split(".")[0]
+        output = "{}/downstream/{}/secondary".format(base, sample_id)
+        local("mkdir -p {}".format(output))
+
+        dest = "{}/md5sum-3.7.0-ccba511".format(output)
+        local("mkdir -p {}".format(dest))
+        results = get("/mnt/outputs/checksums/*", dest)
+        print(results)
 
 
 @parallel
