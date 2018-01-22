@@ -179,6 +179,12 @@ def reset():
 
 @parallel
 def process_ceph(manifest="manifest.tsv", base=".", checksum_only="False"):
+
+    def log_error(message):
+        print(message)
+        with open("errors.txt", "a") as error_log:
+            error_log.write(message + "\n")
+
     boto3.setup_default_session(profile_name="ceph")
     s3 = boto3.resource("s3", endpoint_url="http://ceph-gw-01.pod",
                         config=Config(signature_version='s3'))
@@ -209,19 +215,27 @@ def process_ceph(manifest="manifest.tsv", base=".", checksum_only="False"):
 
         # Run checksum as a test
         with settings(warn_only=True):
-            result = run("cd /mnt && make checksums")
+            result = run("cd /mnt && make expression qc")
             if result.failed:
-                print("{} Failed checksums: {}".format(pair, result))
+                log_error("{} Failed checksums: {}".format(pair, result))
                 continue
+
+        # Delete bam so we don't backhaul
+        run("rm -f /mnt/outputs/expression/*.bam")
 
         # Copy the results back to pstore
         sample_id = pair[0].split(".")[0]
         output = "{}/downstream/{}/secondary".format(base, sample_id)
         local("mkdir -p {}".format(output))
 
-        dest = "{}/md5sum-3.7.0-ccba511".format(output)
+        dest = "{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9".format(output)
         local("mkdir -p {}".format(dest))
-        results = get("/mnt/outputs/checksums/*", dest)
+        results = get("/mnt/outputs/expression/*", dest)
+        print(results)
+
+        dest = "{}/ucsctreehouse-bam-umend-qc-1.1.0-cc481e4".format(output)
+        local("mkdir -p {}".format(dest))
+        results = get("/mnt/outputs/qc/*", dest)
         print(results)
 
 
