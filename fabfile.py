@@ -196,8 +196,8 @@ def process_ceph(manifest="manifest.tsv", base=".", checksum_only="False"):
     pairs = [(fastqs[i], fastqs[i+1]) for i in range(0, len(fastqs), 2)]
     print("Pairs:", pairs[0:4])
 
-    # DEBUG: Only do a few and skip that first large one
-    pairs = pairs[1:3]
+    # DEBUG: Skip first big one and the other 2 we already did
+    pairs = pairs[3:]
 
     for pair in pairs[env.hosts.index(env.host)::len(env.hosts)]:
         print("Processing {} on {}".format(pair, env.host))
@@ -220,8 +220,12 @@ def process_ceph(manifest="manifest.tsv", base=".", checksum_only="False"):
                 log_error("{} Failed checksums: {}".format(pair, result))
                 continue
 
-        # Delete bam so we don't backhaul
-        run("rm -f /mnt/outputs/expression/*.bam")
+        # Unpack outputs and normalize names so we don't have sample id in them
+        # Delete bam so we don't backhaul it
+        with cd("/mnt/outputs/expression"):
+            run("tar -xvf *.tar.gz --strip 1")
+            run("rm *.tar.gz")
+            run("rm -f *.bam")
 
         # Copy the results back to pstore
         sample_id = pair[0].split(".")[0]
