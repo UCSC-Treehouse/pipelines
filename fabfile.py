@@ -32,6 +32,9 @@ import os
 import datetime
 import json
 import glob
+import re
+import boto3
+from botocore.config import Config
 from fabric.api import env, local, run, sudo, runs_once, parallel, warn_only, cd, settings
 from fabric.operations import put, get
 
@@ -120,6 +123,12 @@ def configure():
     sudo("gpasswd -a ubuntu docker")
     sudo("apt-get -qy install make")
 
+    # Install aws cli
+    sudo("apt-get -qy install python-minimal")
+    sudo("curl --silent --show-error --retry 5 https://bootstrap.pypa.io/get-pip.py | sudo python")
+    sudo("pip install awscli")
+    put("~/.aws", "/home/ubuntu")
+
     # openstack doesn't format /mnt correctly...
     sudo("umount /mnt")
     sudo("parted -s /dev/vdb mklabel gpt")
@@ -169,6 +178,72 @@ def reset():
 
 
 @parallel
+def process_ceph(manifest="manifest.tsv", base=".", checksum_only="False"):
+
+    def log_error(message):
+        print(message)
+        with open("errors.txt", "a") as error_log:
+            error_log.write(message + "\n")
+
+    boto3.setup_default_session(profile_name="ceph")
+    s3 = boto3.resource("s3", endpoint_url="http://ceph-gw-01.pod",
+                        config=Config(signature_version='s3'))
+    fastqs = sorted([obj.key for obj in s3.Bucket("CCLE").objects.all()
+                     if re.search(r"fastq|fq", obj.key)])
+    print("Found {} fastq".format(len(fastqs)))
+    print(fastqs[0:8])
+
+    pairs = [(fastqs[i], fastqs[i+1]) for i in range(0, len(fastqs), 2)]
+    print("Pairs:", pairs[0:4])
+
+    # DEBUG: Skip first big one and the other 2 we already did
+    pairs = pairs[3:]
+
+    for pair in pairs[env.hosts.index(env.host)::len(env.hosts)]:
+        print("Processing {} on {}".format(pair, env.host))
+        reset()
+
+        # Copy files from s3 down to machine
+        run("""
+            aws --profile ceph --endpoint http://ceph-gw-01.pod/ \
+                s3 cp --only-show-errors s3://CCLE/{} /mnt/samples/
+            """.format(pair[0]))
+        run("""
+            aws --profile ceph --endpoint http://ceph-gw-01.pod/ \
+                s3 cp --only-show-errors s3://CCLE/{} /mnt/samples/
+            """.format(pair[1]))
+
+        # Run checksum as a test
+        with settings(warn_only=True):
+            result = run("cd /mnt && make expression qc")
+            if result.failed:
+                log_error("{} Failed checksums: {}".format(pair, result))
+                continue
+
+        # Unpack outputs and normalize names so we don't have sample id in them
+        # Delete bam so we don't backhaul it
+        with cd("/mnt/outputs/expression"):
+            run("tar -xvf *.tar.gz --strip 1")
+            run("rm *.tar.gz")
+            run("rm -f *.bam")
+
+        # Copy the results back to pstore
+        sample_id = pair[0].split(".")[0]
+        output = "{}/downstream/{}/secondary".format(base, sample_id)
+        local("mkdir -p {}".format(output))
+
+        dest = "{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9".format(output)
+        local("mkdir -p {}".format(dest))
+        results = get("/mnt/outputs/expression/*", dest)
+        print(results)
+
+        dest = "{}/ucsctreehouse-bam-umend-qc-1.1.0-cc481e4".format(output)
+        local("mkdir -p {}".format(dest))
+        results = get("/mnt/outputs/qc/*", dest)
+        print(results)
+
+
+@parallel
 def process(manifest="manifest.tsv", base=".", checksum_only="False"):
     """ Process all ids listed in 'manifest' """
 
@@ -211,16 +286,16 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
             print("Converting {} to fastq for {}".format(bam, sample["id"]))
             put("{}/{}".format(base, sample["bams"][0]), "/mnt/samples/")
             with cd("/mnt/samples"):
-                run("""
-                    docker run --rm \
-                      -v /mnt/samples:/samples \
-                      quay.io/ucsc_cgl/samtools:1.5--98b58ba05641ee98fa98414ed28b53ac3048bc09 \
-                      fastq -1 /samples/{0}.R1.fq.gz -2 /samples/{0}.R2.fq.gz /samples/{1}
-                    """.format(bam[:bam.index(".")], bam))
+                run("docker run --rm" +
+                    " -v /mnt/samples:/samples" +
+                    " quay.io/ucsc_cgl/samtools@sha256:" +
+                    "90528e39e246dc37421fe393795aa37fa1156d0dff59742eb243f01d2a27322e"
+                    " fastq -1 /samples/{0}.R1.fastq.gz -2 /samples/{0}.R2.fastq.gz /samples/{1}"
+                    .format(bam[:bam.index(".")], bam))
             local("mkdir -p {}/primary/derived/{}".format(base, sample["id"]))
             print("Copying fastqs back for archiving")
             sample["fastqs"] = get(
-                "/mnt/samples/*.fq.gz", "{}/primary/derived/{}/".format(base, sample["id"]))
+                "/mnt/samples/*.fastq.gz", "{}/primary/derived/{}/".format(base, sample["id"]))
             run("rm /mnt/samples/*.bam")  # Free up space
         elif len(sample["fastqs"]) < 2:
             log_error("Only found a single fastq for {}".format(sample["id"]))

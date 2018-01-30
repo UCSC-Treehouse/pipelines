@@ -2,6 +2,7 @@
 #
 # Generates expression, fusions, and variants folders in outputs
 
+# Look for any files with 1 or 2 followed by any non-numeric till the end
 R1 = $(shell find samples -iregex ".+1[^0-9]*$$" | head -1)
 R2 = $(shell find samples -iregex ".+2[^0-9]*$$" | head -1)
 
