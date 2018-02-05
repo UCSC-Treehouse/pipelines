@@ -179,6 +179,7 @@ def reset():
 
 @parallel
 def process_ceph(manifest="manifest.tsv", base=".", checksum_only="False"):
+    """ Experimental processing from ceph or s3 storage """
 
     def log_error(message):
         print(message)
