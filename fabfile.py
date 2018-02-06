@@ -6,7 +6,7 @@ Experimental fabric based automation to process samples on a docker-machine clus
 NOTE: This is crafted code primarily used internal to Treehouse and assumes
 quite a few things about the layout of primary and secondary files both
 on a shared file server and object store. If you are not familiar with
-any of these it is reccomended to stick with the Makefile for sample by sample
+any of these it is recommended to stick with the Makefile for sample by sample
 processing on the command line.
 
 Storage Hierarchy:
@@ -16,10 +16,11 @@ Samples and outputs are managed on disk or S3 with the following hierarchy:
 primary/
     original/
         id/
-           _R1/_R2 .fastq.gz or .bam
+           *.fastq.gz, *.fq.gz, *.txt.gz or *.bam
+           (multiple fastq pairs will be concatenated)
     derived/
         id/
-           _R1/_R2 .fastq.gz (only if original needs grooming)
+           *.fastq.gz
 
 downstream/
     id/
@@ -27,14 +28,14 @@ downstream/
             pipeline-name-version-hash/
         tertiary/
 
+NOTE: See Makefile for regex that looks from right for 1 or 2 to find pairs
+
 """
 import os
 import datetime
 import json
 import glob
 import re
-import boto3
-from botocore.config import Config
 from fabric.api import env, local, run, sudo, runs_once, parallel, warn_only, cd, settings
 from fabric.operations import put, get
 
@@ -49,8 +50,7 @@ on openstack the driver deletes it on termination.
 """
 
 
-def find_machines():
-
+def _find_machines():
     """ Fill in host globals from docker-machine """
     env.user = "ubuntu"
     machines = [json.loads(open(m).read())["Driver"]
@@ -64,7 +64,13 @@ def find_machines():
     env.key_filename = "~/.ssh/id_rsa"
 
 
-find_machines()
+_find_machines()
+
+
+def _log_error(message):
+    print(message)
+    with open("errors.txt", "a") as error_log:
+        error_log.write(message + "\n")
 
 
 @runs_once
@@ -92,7 +98,7 @@ def up(count=1):
               "| docker-machine ssh {} 'cat >> ~/.ssh/authorized_keys'".format(hostname))
 
     # In case additional commands are called after up
-    find_machines()
+    _find_machines()
 
 
 @runs_once
@@ -180,11 +186,8 @@ def reset():
 @parallel
 def process_ceph(manifest="manifest.tsv", base=".", checksum_only="False"):
     """ Experimental processing from ceph or s3 storage """
-
-    def log_error(message):
-        print(message)
-        with open("errors.txt", "a") as error_log:
-            error_log.write(message + "\n")
+    import boto3
+    from botocore.config import Config
 
     boto3.setup_default_session(profile_name="ceph")
     s3 = boto3.resource("s3", endpoint_url="http://ceph-gw-01.pod",
@@ -218,7 +221,7 @@ def process_ceph(manifest="manifest.tsv", base=".", checksum_only="False"):
         with settings(warn_only=True):
             result = run("cd /mnt && make expression qc")
             if result.failed:
-                log_error("{} Failed checksums: {}".format(pair, result))
+                _log_error("{} Failed checksums: {}".format(pair, result))
                 continue
 
         # Unpack outputs and normalize names so we don't have sample id in them
@@ -244,71 +247,98 @@ def process_ceph(manifest="manifest.tsv", base=".", checksum_only="False"):
         print(results)
 
 
+def _put_primary(sample_id, base):
+    """ Search form fastqs and bams, convert and put to machine """
+
+    # First see if there are ONLY two fastqs in derived
+    files = sorted(glob.glob("{}/primary/derived/{}/*.fastq.gz".format(base, sample_id))
+                   + glob.glob("{}/primary/derived/{}/*.fq.gz".format(base, sample_id)))
+    if len(files) == 2:
+        print("Processing two derived fastqs for {}".format(sample_id))
+        for fastq in files:
+            print("Copying fastq {} to cluster machine....".format(fastq))
+            put(fastq, "/mnt/samples/")
+        return files
+
+    # Look for fastqs in primary
+    files = sorted(glob.glob("{}/primary/original/{}/*.txt.gz".format(base, sample_id))
+                   + glob.glob("{}/primary/original/{}/*.fastq.gz".format(base, sample_id))
+                   + glob.glob("{}/primary/original/{}/*.fq.gz".format(base, sample_id)))
+
+    # Two primary fastqs
+    if len(files) == 2:
+        print("Processing two primary fastqs for {}".format(sample_id))
+        for fastq in files:
+            print("Copying fastq {} to cluster machine....".format(fastq))
+            put(fastq, "/mnt/samples/")
+        return files
+
+    # More then two original fastqs so concatenate
+    if len(files) > 2 and len(files) % 2 == 0:
+        print("Converting multiple primary fastqs for {}".format(sample_id))
+        for fastq in files:
+            print("Copying fastq {} to cluster machine....".format(fastq))
+            put(fastq, "/mnt/samples/")
+        names = [os.path.basename(f) for f in files]
+        print("Concatenating fastqs...")
+        with cd("/mnt/samples"):
+            run("zcat {} | gzip > merged.R1.fastq.gz".format(" ".join(names[:len(names/2)])))
+            run("zcat {} | gzip > merged.R2.fastq.gz".format(" ".join(names[len(names/2):])))
+            run("rm {}".format(" ".join(names)))  # Free up space
+        return files
+
+    # No fastqs so look for a single bam in original
+    files = sorted(glob.glob("{}/primary/original/{}/*.bam".format(base, sample_id)))
+    if len(files) == 1:
+        print("Converting original bam for {}".format(sample_id))
+        bam = os.path.basename(files[0])
+        put(bam, "/mnt/samples/")
+        with cd("/mnt/samples"):
+            run("docker run --rm" +
+                " -v /mnt/samples:/samples" +
+                " quay.io/ucsc_cgl/samtools@sha256:" +
+                "90528e39e246dc37421fe393795aa37fa1156d0dff59742eb243f01d2a27322e"
+                " fastq -1 /samples/{0}.R1.fastq.gz -2 /samples/{0}.R2.fastq.gz /samples/{1}"
+                .format(bam[:bam.index(".")], bam))
+            run("rm *.bam")  # Free up space
+        local("mkdir -p {}/primary/derived/{}".format(base, sample_id))
+        print("Copying fastqs back for archiving")
+        fastqs = get("/mnt/samples/*.fastq.gz", "{}/primary/derived/{}/".format(base, sample_id))
+        return fastqs
+
+    print("ERROR Unable to find or derive secondary input for {}".format(sample_id))
+    return []
+
+
 @parallel
 def process(manifest="manifest.tsv", base=".", checksum_only="False"):
     """ Process all ids listed in 'manifest' """
-
-    def log_error(message):
-        print(message)
-        with open("errors.txt", "a") as error_log:
-            error_log.write(message + "\n")
 
     # Copy Makefile in case we changed it while developing...
     put("{}/Makefile".format(os.path.dirname(env.real_fabfile)), "/mnt")
 
     # Read ids and pick every #hosts to allocate round robin to each machine
     with open(manifest) as f:
-        ids = sorted([word.strip() for line in f.readlines() for word in line.split(',')
-                      if word.strip()])[env.hosts.index(env.host)::len(env.hosts)]
+        sample_ids = sorted([word.strip() for line in f.readlines() for word in line.split(',')
+                             if word.strip()])[env.hosts.index(env.host)::len(env.hosts)]
 
-    # Look for all bams and fastq's prioritizing derived over original
-    samples = [{"id": id,
-                "bams": [os.path.relpath(p, base) for p in sorted(
-                    glob.glob("{}/primary/*/{}/*.bam".format(base, id)))],
-                "fastqs": [os.path.relpath(p, base) for p in sorted(
-                    glob.glob("{}/primary/*/{}/*.fastq.*".format(base, id))
-                    + glob.glob("{}/primary/*/{}/*.fq.*".format(base, id)))]} for id in ids]
-
-    print("Samples to be processed on {}:".format(env.host), samples)
-
-    for sample in samples:
-        print("{} processing {}".format(env.host, sample))
+    for sample_id in sample_ids:
+        print("{} processing {}".format(env.host, sample_id))
 
         # Reset machine clearing all output, samples, and killing dockers
         reset()
 
         run("mkdir -p /mnt/samples")
 
-        if not sample["fastqs"] and not sample["bams"]:
-            log_error("Unable find any fastqs or bams associated with {}".format(sample["id"]))
+        # Put secondary input files from primary storage
+        fastqs = _put_primary(base, sample_id)
+
+        if not fastqs:
+            _log_error("Unable find any fastqs or bams associated with {}".format(sample_id))
             continue
-        elif not sample["fastqs"] and sample["bams"]:
-            bam = os.path.basename(sample["bams"][0])
-            print("Converting {} to fastq for {}".format(bam, sample["id"]))
-            put("{}/{}".format(base, sample["bams"][0]), "/mnt/samples/")
-            with cd("/mnt/samples"):
-                run("docker run --rm" +
-                    " -v /mnt/samples:/samples" +
-                    " quay.io/ucsc_cgl/samtools@sha256:" +
-                    "90528e39e246dc37421fe393795aa37fa1156d0dff59742eb243f01d2a27322e"
-                    " fastq -1 /samples/{0}.R1.fastq.gz -2 /samples/{0}.R2.fastq.gz /samples/{1}"
-                    .format(bam[:bam.index(".")], bam))
-            local("mkdir -p {}/primary/derived/{}".format(base, sample["id"]))
-            print("Copying fastqs back for archiving")
-            sample["fastqs"] = get(
-                "/mnt/samples/*.fastq.gz", "{}/primary/derived/{}/".format(base, sample["id"]))
-            run("rm /mnt/samples/*.bam")  # Free up space
-        elif len(sample["fastqs"]) < 2:
-            log_error("Only found a single fastq for {}".format(sample["id"]))
-            continue
-        else:
-            # Copy the fastqs over
-            for fastq in sample["fastqs"][:2]:
-                print("Copying fastq {} to cluster machine....".format(fastq))
-                put("{}/{}".format(base, fastq), "/mnt/samples/")
 
         # Create downstream output parent
-        output = "{}/downstream/{}/secondary".format(base, sample["id"])
+        output = "{}/downstream/{}/secondary".format(base, sample_id)
         local("mkdir -p {}".format(output))
 
         # Initialize methods.json
@@ -316,20 +346,20 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
                    "treeshop_version": local(
                       "git --work-tree={0} --git-dir {0}/.git describe --always".format(
                           os.path.dirname(__file__)), capture=True),
-                   "sample_id": sample["id"]}
+                   "sample_id": sample_id}
 
         # Calculate checksums
         methods["start"] = datetime.datetime.utcnow().isoformat()
         with settings(warn_only=True):
             result = run("cd /mnt && make checksums")
             if result.failed:
-                log_error("{} Failed checksums: {}".format(sample["id"], result))
+                _log_error("{} Failed checksums: {}".format(sample_id, result))
                 continue
 
         # Update methods.json and copy output back
         dest = "{}/md5sum-3.7.0-ccba511".format(output)
         local("mkdir -p {}".format(dest))
-        methods["inputs"] = sample["fastqs"]
+        methods["inputs"] = fastqs
         methods["outputs"] = [
             os.path.relpath(p, base) for p in get("/mnt/outputs/checksums/*", dest)]
         methods["end"] = datetime.datetime.utcnow().isoformat()
@@ -352,11 +382,11 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
         with settings(warn_only=True):
             result = run("cd /mnt && make expression")
             if result.failed:
-                log_error("{} Failed expression: {}".format(sample["id"], result))
+                _log_error("{} Failed expression: {}".format(sample_id, result))
                 continue
 
         # Create output parent - wait till now in case first pipeline halted
-        output = "{}/downstream/{}/secondary".format(base, sample["id"])
+        output = "{}/downstream/{}/secondary".format(base, sample_id)
         local("mkdir -p {}".format(output))
 
         # Unpack outputs and normalize names so we don't have sample id in them
@@ -368,7 +398,7 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
         # Update methods.json and copy output back
         dest = "{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9".format(output)
         local("mkdir -p {}".format(dest))
-        methods["inputs"] = sample["fastqs"]
+        methods["inputs"] = fastqs
         methods["outputs"] = [
             os.path.relpath(p, base) for p in get("/mnt/outputs/expression/*", dest)]
         methods["end"] = datetime.datetime.utcnow().isoformat()
@@ -388,7 +418,7 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
         with settings(warn_only=True):
             result = run("cd /mnt && make qc")
             if result.failed:
-                log_error("{} Failed qc: {}".format(sample["id"], result))
+                _log_error("{} Failed qc: {}".format(sample_id, result))
                 continue
 
         # Update methods.json and copy output back
@@ -415,13 +445,13 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
         with settings(warn_only=True):
             result = run("cd /mnt && make fusions")
             if result.failed:
-                log_error("{} Failed fusions: {}".format(sample["id"], result))
+                _log_error("{} Failed fusions: {}".format(sample_id, result))
                 continue
 
         # Update methods.json and copy output back
         dest = "{}/ucsctreehouse-fusion-0.1.0-3faac56".format(output)
         local("mkdir -p {}".format(dest))
-        methods["inputs"] = sample["fastqs"]
+        methods["inputs"] = fastqs
         methods["outputs"] = [
             os.path.relpath(p, base) for p in get("/mnt/outputs/fusions/*", dest)]
         methods["end"] = datetime.datetime.utcnow().isoformat()
@@ -441,7 +471,7 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
         with settings(warn_only=True):
             result = run("cd /mnt && make variants")
             if result.failed:
-                log_error("{} Failed variants: {}".format(sample["id"], result))
+                _log_error("{} Failed variants: {}".format(sample_id, result))
                 continue
 
         # Update methods.json and copy output back
