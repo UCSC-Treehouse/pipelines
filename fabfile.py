@@ -280,10 +280,11 @@ def _put_primary(sample_id, base):
             print("Copying fastq {} to cluster machine....".format(fastq))
             put(fastq, "/mnt/samples/")
         names = [os.path.basename(f) for f in files]
+        print("Names:", names)
         print("Concatenating fastqs...")
         with cd("/mnt/samples"):
-            run("zcat {} | gzip > merged.R1.fastq.gz".format(" ".join(names[:len(names/2)])))
-            run("zcat {} | gzip > merged.R2.fastq.gz".format(" ".join(names[len(names/2):])))
+            run("zcat {} | gzip > merged.R1.fastq.gz".format(" ".join(names[0::2])))
+            run("zcat {} | gzip > merged.R2.fastq.gz".format(" ".join(names[1::2])))
             run("rm {}".format(" ".join(names)))  # Free up space
         return files
 
@@ -331,7 +332,10 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
         run("mkdir -p /mnt/samples")
 
         # Put secondary input files from primary storage
-        fastqs = _put_primary(base, sample_id)
+        fastqs = _put_primary(sample_id, base)
+        print("Original fastq paths", fastqs)
+        fastqs = [os.path.relpath(fastq, base) for fastq in fastqs]
+        print("Relative fastq paths", fastqs)
 
         if not fastqs:
             _log_error("Unable find any fastqs or bams associated with {}".format(sample_id))
