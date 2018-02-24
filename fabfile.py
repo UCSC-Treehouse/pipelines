@@ -293,17 +293,17 @@ def _put_primary(sample_id, base):
     if len(files) == 1:
         print("Converting original bam for {}".format(sample_id))
         bam = os.path.basename(files[0])
-        put(bam, "/mnt/samples/")
+        put(files[0], "/mnt/samples/")
         with cd("/mnt/samples"):
-            run("docker run --rm" +
-                " -v /mnt/samples:/samples" +
-                " quay.io/ucsc_cgl/samtools@sha256:" +
-                "90528e39e246dc37421fe393795aa37fa1156d0dff59742eb243f01d2a27322e"
-                " fastq -1 /samples/{0}.R1.fastq.gz -2 /samples/{0}.R2.fastq.gz /samples/{1}"
-                .format(bam[:bam.index(".")], bam))
+            run("docker run --rm"
+                " -v /mnt/samples:/data"
+                " -e input={}"
+                " linhvoyo/btfv9"
+                "@sha256:44f5c116f9a4a89e1fc49c6ec5aec86a9808e856f7fd125509dfe7e011f5ef59".format(bam)) # NOQA
             run("rm *.bam")  # Free up space
         local("mkdir -p {}/primary/derived/{}".format(base, sample_id))
         print("Copying fastqs back for archiving")
+        get("/mnt/samples/*.log", "{}/primary/derived/{}/".format(base, sample_id))
         fastqs = get("/mnt/samples/*.fastq.gz", "{}/primary/derived/{}/".format(base, sample_id))
         return fastqs
 
