@@ -92,6 +92,6 @@ variants:
 
 verify:
 	echo "Verifying md5 of output of TEST file"
-	tar -xOzvf outputs/expression/TEST_R1merged.tar.gz FAIL.TEST_R1merged/RSEM/rsem_genes.results | md5sum -c md5/expression.md5
+	tar -xOzvf outputs/expression/TEST_R1merged.tar.gz TEST_R1merged/RSEM/rsem_genes.results | md5sum -c md5/expression.md5
 	cut -f 1 outputs/fusions/star-fusion-non-filtered.final | sort | md5sum -c md5/fusions.md5
 	tail -n 10 outputs/variants/mini.ann.vcf | md5sum -c md5/variants.md5
