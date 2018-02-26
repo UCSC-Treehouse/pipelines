@@ -2,8 +2,9 @@
 #
 # Generates expression, fusions, and variants folders in outputs
 
-R1 = $(shell find samples -iregex ".*?[_1|_R1]\..*?" | head -1)
-R2 = $(shell find samples -iregex ".*?[_2|_R2]\..*?" | head -1)
+# Look for any files with 1 or 2 followed by any non-numeric till the end
+R1 = $(shell find samples -iregex ".+1[^0-9]*$$" | head -1)
+R2 = $(shell find samples -iregex ".+2[^0-9]*$$" | head -1)
 
 REF_BASE ?= "http://hgdownload.soe.ucsc.edu/treehouse/reference"
 
@@ -91,6 +92,6 @@ variants:
 
 verify:
 	echo "Verifying md5 of output of TEST file"
-	tar -xOzvf outputs/expression/TEST_R1merged.tar.gz FAIL.TEST_R1merged/RSEM/rsem_genes.results | md5sum -c md5/expression.md5
+	tar -xOzvf outputs/expression/TEST_R1merged.tar.gz TEST_R1merged/RSEM/rsem_genes.results | md5sum -c md5/expression.md5
 	cut -f 1 outputs/fusions/star-fusion-non-filtered.final | sort | md5sum -c md5/fusions.md5
 	tail -n 10 outputs/variants/mini.ann.vcf | md5sum -c md5/variants.md5
