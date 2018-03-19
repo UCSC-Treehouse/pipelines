@@ -133,7 +133,8 @@ def configure():
     sudo("apt-get -qy install python-minimal")
     sudo("curl --silent --show-error --retry 5 https://bootstrap.pypa.io/get-pip.py | sudo python")
     sudo("pip install awscli")
-    put("~/.aws", "/home/ubuntu")
+    with warn_only():
+        put("~/.aws", "/home/ubuntu")
 
     # openstack doesn't format /mnt correctly...
     sudo("umount /mnt")
