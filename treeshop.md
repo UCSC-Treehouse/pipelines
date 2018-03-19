@@ -96,45 +96,45 @@ After this you should have the following under downstream:
 
 	treeshop/downstream/
 	└── TEST
-			└── secondary
-					├── md5sum-3.7.0-ccba511
-					│   ├── md5
-					│   └── methods.json
-					├── ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9
-					│   ├── Kallisto
-					│   │   ├── abundance.h5
-					│   │   ├── abundance.tsv
-					│   │   ├── fusion.txt
-					│   │   └── run_info.json
-					│   ├── methods.json
-					│   ├── QC
-					│   │   ├── fastQC
-					│   │   │   ├── R1_fastqc.html
-					│   │   │   ├── R1_fastqc.zip
-					│   │   │   ├── R2_fastqc.html
-					│   │   │   └── R2_fastqc.zip
-					│   │   └── STAR
-					│   │       ├── Log.final.out
-					│   │       └── SJ.out.tab
-					│   ├── RSEM
-					│   │   ├── Hugo
-					│   │   │   ├── rsem_genes.hugo.results
-					│   │   │   └── rsem_isoforms.hugo.results
-					│   │   ├── rsem_genes.results
-					│   │   └── rsem_isoforms.results
-					│   └── sorted.bam
-					├── ucsctreehouse-bam-umend-qc-1.1.0-cc481e4
-					│   ├── bam_umend_qc.json
-					│   ├── bam_umend_qc.tsv
-					│   ├── methods.json
-					│   └── readDist.txt                                                                                                                                                         ├── ucsctreehouse-fusion-0.1.0-3faac56
-					│   ├── Log.final.out
-					│   ├── methods.json
-					│   ├── star-fusion-gene-list-filtered.final
-					│   └── star-fusion-non-filtered.final
-					└── ucsctreehouse-mini-var-call-0.0.1-1976429
-							├── methods.json
-							└── mini.ann.vcf
+      └── secondary
+          ├── md5sum-3.7.0-ccba511
+          │   ├── md5
+          │   └── methods.json
+          ├── ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9
+          │   ├── Kallisto
+          │   │   ├── abundance.h5
+          │   │   ├── abundance.tsv
+          │   │   ├── fusion.txt
+          │   │   └── run_info.json
+          │   ├── methods.json
+          │   ├── QC
+          │   │   ├── fastQC
+          │   │   │   ├── R1_fastqc.html
+          │   │   │   ├── R1_fastqc.zip
+          │   │   │   ├── R2_fastqc.html
+          │   │   │   └── R2_fastqc.zip
+          │   │   └── STAR
+          │   │       ├── Log.final.out
+          │   │       └── SJ.out.tab
+          │   ├── RSEM
+          │   │   ├── Hugo
+          │   │   │   ├── rsem_genes.hugo.results
+          │   │   │   └── rsem_isoforms.hugo.results
+          │   │   ├── rsem_genes.results
+          │   │   └── rsem_isoforms.results
+          │   └── sorted.bam
+          ├── ucsctreehouse-bam-umend-qc-1.1.0-cc481e4
+          │   ├── bam_umend_qc.json
+          │   ├── bam_umend_qc.tsv
+          │   ├── methods.json
+          │   └── readDist.txt                                                                                                                                                         ├── ucsctreehouse-fusion-0.1.0-3faac56
+          │   ├── Log.final.out
+          │   ├── methods.json
+          │   ├── star-fusion-gene-list-filtered.final
+          │   └── star-fusion-non-filtered.final
+          └── ucsctreehouse-mini-var-call-0.0.1-1976429
+              ├── methods.json
+              └── mini.ann.vcf
 
 ## Notes
 
