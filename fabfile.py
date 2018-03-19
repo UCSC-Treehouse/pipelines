@@ -248,7 +248,7 @@ def process_ceph(manifest="manifest.tsv", base=".", checksum_only="False"):
 
 
 def _put_primary(sample_id, base):
-    """ Search form fastqs and bams, convert and put to machine """
+    """ Search all fastqs and bams, convert and put to machine as needed """
 
     # First see if there are ONLY two fastqs in derived
     files = sorted(glob.glob("{}/primary/derived/{}/*.fastq.gz".format(base, sample_id))
