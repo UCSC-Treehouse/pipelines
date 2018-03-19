@@ -1,6 +1,6 @@
 # Treeshop Cluster Processing
 
-To process multiple samples through the [Treehouse pipelines Makefile](https://github.com/UCSC-Treehouse/pipelines/blob/master/Makefile) we use [docker-machine](https://docs.docker.com/machine/overview/) to spin up a cluster of machines on an Openstack cluster and a simple [Fabric](http://www.fabfile.org/) file to control the compute. 
+To process multiple samples through the [Treehouse pipelines Makefile](https://github.com/UCSC-Treehouse/pipelines/blob/master/Makefile) we use [docker-machine](https://docs.docker.com/machine/overview/) to spin up a cluster of machines on Openstack and a simple [Fabric](http://www.fabfile.org/) file to control the compute. 
 
 ## Requirements
 
