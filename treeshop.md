@@ -127,7 +127,8 @@ After this you should have the following under downstream:
           │   ├── bam_umend_qc.json
           │   ├── bam_umend_qc.tsv
           │   ├── methods.json
-          │   └── readDist.txt                                                                                                                                                         ├── ucsctreehouse-fusion-0.1.0-3faac56
+          │   └── readDist.txt
+          ├── ucsctreehouse-fusion-0.1.0-3faac56
           │   ├── Log.final.out
           │   ├── methods.json
           │   ├── star-fusion-gene-list-filtered.final
