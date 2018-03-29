@@ -4,10 +4,10 @@ To process multiple samples through the [Treehouse pipelines Makefile](https://g
 
 ## Requirements
 
-  [docker](https://www.docker.com)
-  [docker-machine](https://docs.docker.com/machine/overview/)
-  [Fabric](http://www.fabfile.org/)
-  Credentials for your Openstack Cluster (OS_USERNAME and OS_PASSWORD defined)
+* [docker](https://www.docker.com)
+* [docker-machine](https://docs.docker.com/machine/overview/)
+* [Fabric](http://www.fabfile.org/)
+* Credentials for your Openstack Cluster (OS_USERNAME and OS_PASSWORD environment variables defined)
 
 ## Operation Overview
 
