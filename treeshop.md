@@ -1,6 +1,6 @@
 # Treeshop Cluster Processing
 
-To process multiple samples through the [Treehouse pipelines Makefile](https://github.com/UCSC-Treehouse/pipelines/blob/master/Makefile) we use [docker-machine](https://docs.docker.com/machine/overview/) to spin up a cluster of machines on Openstack and a simple [Fabric](http://www.fabfile.org/) file to control the compute. 
+To process multiple samples through the [Treehouse pipelines Makefile](https://github.com/UCSC-Treehouse/pipelines/blob/master/Makefile) we use [docker-machine](https://docs.docker.com/machine/overview/) to spin up a cluster of machines on Openstack and a simple [Fabric](http://www.fabfile.org/) file to control the compute.
 
 ## Requirements
 
@@ -26,15 +26,20 @@ Clone this repository:
 
     git clone https://github.com/UCSC-Treehouse/pipelines.git
 
-Create a folders that match the [Treehouse storage layout](https://github.com/UCSC-Treehouse/pipelines/blob/master/fabfile.py#L12):
+Create needed directory  and navigate into the newly cloned repository:
+
+    mkdir .aws
+    cd pipelines
+
+Create folders that match the [Treehouse storage layout](https://github.com/UCSC-Treehouse/pipelines/blob/master/fabfile.py#L12):
 
     mkdir -p treeshop/primary/original/TEST treeshop/downstream
 
-Copy the TEST fastq samples into the storage hierarchy
-  
+Copy the TEST fastq samples into the storage hierarchy:
+
     cp samples/*.fastq.gz treeshop/primary/original/TEST/
 
-Spin up a single cluster machine:
+Spin up a single cluster machine (make sure you have created your SSH key):
 
     fab up
 
