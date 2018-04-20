@@ -54,13 +54,13 @@ expression:
 			--sample-paired $(R1),$(R2)
 
 qc:
-	echo "Running bam-umend-qc 1.1.0 pipeline on sorted bam from expression"
+	echo "Running bam-umend-qc 1.1.1 pipeline on sorted bam from expression"
 	mkdir -p outputs/qc
 	docker run --rm \
 	  -v `pwd`/$(shell find outputs/expression/*.bam):/inputs/sample.bam \
 		-v $(shell pwd)/outputs/qc:/tmp \
 		-v $(shell pwd)/outputs/qc:/outputs \
-		ucsctreehouse/bam-umend-qc@sha256:cc481e413735e36b96caaa7fff977e591983e08eb5a625fed3aa90dd7108817e \
+		ucsctreehouse/bam-umend-qc@sha256:5f286d72395fcc5085a96d463ae3511554acfa4951aef7d691bba2181596c31f \
 			/inputs/sample.bam /outputs
 
 fusions:
@@ -83,7 +83,7 @@ variants:
 	mkdir -p outputs/variants
 	docker run --rm \
 		-v $(shell pwd)/references:/references \
-	  -v `pwd`/$(shell find outputs/expression/*sorted*):/inputs/sample.bam \
+	  -v `pwd`/$(shell find outputs/qc/sortedByCoord.md.bam):/inputs/sample.bam \
 		-v $(shell pwd)/outputs/variants:/outputs \
 		ucsctreehouse/mini-var-call@sha256:197642937956ae73465ad2ef4b42501681ffc3ef07fecb703f58a3487eab37ff \
 			/references/GCA_000001405.15_GRCh38_no_alt_analysis_set.fa \
