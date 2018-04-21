@@ -427,7 +427,7 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
                 continue
 
         # Update methods.json and copy output back
-        dest = "{}/ucsctreehouse-bam-umend-qc-1.1.0-cc481e4".format(output)
+        dest = "{}/ucsctreehouse-bam-umend-qc-1.1.1-5f286d7".format(output)
         local("mkdir -p {}".format(dest))
         methods["inputs"] = ["{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9/sorted.bam".format(
                 os.path.relpath(output, base))]
@@ -438,8 +438,8 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
             "source": "https://github.com/UCSC-Treehouse/bam-umend-qc",
             "docker": {
                 "url": "https://hub.docker.com/r/ucsctreehouse/bam-umend-qc",
-                "version": "1.1.0",
-                "hash": "sha256:cc481e413735e36b96caaa7fff977e591983e08eb5a625fed3aa90dd7108817e" # NOQA
+                "version": "1.1.1",
+                "hash": "sha256:5f286d72395fcc5085a96d463ae3511554acfa4951aef7d691bba2181596c31f" # NOQA
             }
         }
         with open("{}/methods.json".format(dest), "w") as f:
@@ -482,7 +482,7 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
         # Update methods.json and copy output back
         dest = "{}/ucsctreehouse-mini-var-call-0.0.1-1976429".format(output)
         local("mkdir -p {}".format(dest))
-        methods["inputs"] = ["{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9/sorted.bam".format(
+        methods["inputs"] = ["{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9/sortedByCoord.md.bam".format( # NOQA
                 os.path.relpath(output, base))]
         methods["outputs"] = [
             os.path.relpath(p, base) for p in get("/mnt/outputs/variants/*", dest)]
