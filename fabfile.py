@@ -418,6 +418,15 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
         with open("{}/methods.json".format(dest), "w") as f:
             f.write(json.dumps(methods, indent=4))
 
+        """
+        FIXME HACK: Delete the RNASeq BAM favoring the bam output from umend QC.
+        Ideally would delete before back hauling but fabric doesn't support exclude
+        and the alternative would require moving it away and back before QC
+        or listing all files that should be backhauled from rnaseq.
+        """
+        print("Deleting local copy of RNASeq BAM in favor of UMEND BAM")
+        local("rm {}/*.bam".format(dest))
+
         # Calculate qc (bam-umend-qc)
         methods["start"] = datetime.datetime.utcnow().isoformat()
         with settings(warn_only=True):

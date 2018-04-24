@@ -83,7 +83,7 @@ variants:
 	mkdir -p outputs/variants
 	docker run --rm \
 		-v $(shell pwd)/references:/references \
-	  -v `pwd`/$(shell find outputs/qc/sortedByCoord.md.bam):/inputs/sample.bam \
+	  -v `pwd`/$(shell find outputs/qc/*.bam):/inputs/sample.bam \
 		-v $(shell pwd)/outputs/variants:/outputs \
 		ucsctreehouse/mini-var-call@sha256:197642937956ae73465ad2ef4b42501681ffc3ef07fecb703f58a3487eab37ff \
 			/references/GCA_000001405.15_GRCh38_no_alt_analysis_set.fa \
