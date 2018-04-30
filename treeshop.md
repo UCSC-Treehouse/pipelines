@@ -28,7 +28,7 @@ Clone this repository:
 
 Create needed directory  and navigate into the newly cloned repository:
 
-    mkdir .aws
+    mkdir ~/.aws
     cd pipelines
 
 Create folders that match the [Treehouse storage layout](https://github.com/UCSC-Treehouse/pipelines/blob/master/fabfile.py#L12):
