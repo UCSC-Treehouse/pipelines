@@ -24,6 +24,26 @@ sense of if things are going smoothly.
 
 ### Prerequisites
 
+#### PATH
+
+If you are a new user, you may need to set up your PATH.
+You can do this by editing your .bashrc file (example uses VIM, feel free to use your favorite text editor).
+From your home directory type:
+
+    vim .bashrc
+
+In the text editor copy and paste:
+
+    #!/user/bin/env bash
+
+    #echo mypath=$PATH
+    export PATH=$HOME/bin:$PATH
+    export PATH=$PATH:/pod/pstore/groups/treehouse/sratoolkit/sratoolkit.2.8.2-1-centos_linux64/bin/:/scratch/<username>
+    export PATH=$HOME/.local/bin:$PATH
+
+Make sure to change the <username> in the second export statement to your user name.
+Press `ESC`, then type `:wq` to save and quit.
+
 #### SSH Key
 
 You will need a SSH key in order to use your machine.  
