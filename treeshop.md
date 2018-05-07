@@ -66,6 +66,10 @@ If not, you can create your SSH key:
 Press enter to save the key to the default directory.
 Press enter again to skip giving your SSH key a passphrase.
 
+#### Installing docker-machine
+
+*Information on installing docker-machine*
+
 Congratulations, you are now ready to set up your docker-machine.
 
 ### Set Up
@@ -191,6 +195,17 @@ After this you should have the following under downstream:
           └── ucsctreehouse-mini-var-call-0.0.1-1976429
               ├── methods.json
               └── mini.ann.vcf
+
+### Shut Down
+
+After confirming that you successfully processed your data, you may want to shut down your docker machine.
+This will free up resources and space for other Treehouse and Genomics Institute users.
+To do this you will need the name of the docker machine you want to shut down (type `docker-machine ls` for a list of machines).
+Then type:
+
+    docker-machine rm [machine name]
+
+Press `y` to confirm deletion.  If you used floating IPs you may need to log into openstack in order to release them.
 
 ## Notes
 
