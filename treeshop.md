@@ -22,6 +22,34 @@ sense of if things are going smoothly.
 
 ## Getting Started
 
+### Prerequisites
+
+#### SSH Key
+
+You will need a SSH key in order to use your machine.  
+If you know for certain that you have a SSH key, skip ahead to the Set Up section.
+
+To check if you already have a SSH key, type:
+
+    cd ~/.ssh
+
+If the output is "No such file or directory", then you do not have any SSH keys.
+If you successfully navigated to the directory, check that your key exists already:
+
+    ls id_*
+
+If your keys show up you can move on to the set up.
+If not, you can create your SSH key:
+
+    ssh-keygen -t rsa
+
+Press enter to save the key to the default directory.
+Press enter again to skip giving your SSH key a passphrase.
+
+Congratulations, you are now ready to set up your docker-machine.
+
+### Set Up
+
 Clone this repository:
 
     git clone https://github.com/UCSC-Treehouse/pipelines.git
