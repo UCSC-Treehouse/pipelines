@@ -41,7 +41,15 @@ In the text editor copy and paste:
     export PATH=$PATH:/pod/pstore/groups/treehouse/sratoolkit/sratoolkit.2.8.2-1-centos_linux64/bin/:/scratch/<username>
     export PATH=$HOME/.local/bin:$PATH
 
-Make sure to change the <username> in the second export statement to your user name.
+You will also need to save your openstack cluster credentials.  Copy and paste:
+
+    # treeshop
+    export OS_USERNAME=<username>
+    export OS_PASSWORD=<password>
+
+Make sure to change the <username> in the second export PATH statement as well as entering your user name and password in the treeshop section.
+(You can press `i` in VIM to enter insert mode for writing in your user name and password).
+
 Press `ESC`, then type `:wq` to save and quit.
 
 #### SSH Key
