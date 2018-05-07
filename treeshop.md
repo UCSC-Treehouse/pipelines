@@ -117,13 +117,15 @@ Process the samples in manifest.tsv with source and destination under the treesh
 
 Output:
 
-  [10.50.102.245] Executing task 'process'
-  Warning: run() received nonzero return code 1 while executing 'docker stop $(docker ps -a -q)'!
-  Warning: run() received nonzero return code 1 while executing 'docker rm $(docker ps -a -q)'!
-  [10.50.102.245] put: /scratch/username/pipelines/Makefile -> /mnt/Makefile
-  10.50.102.245 processing TEST
+    [10.50.102.245] Executing task 'process'
+    Warning: run() received nonzero return code 1 while executing 'docker stop $(docker ps -a -q)'!
+    Warning: run() received nonzero return code 1 while executing 'docker rm $(docker ps -a -q)'!
+    [10.50.102.245] put: /scratch/username/pipelines/Makefile -> /mnt/Makefile
+    10.50.102.245 processing TEST
+
   ...lot and lots of output...
-	Done.
+
+    Done.
 
 After this you should have the following under downstream:
 
