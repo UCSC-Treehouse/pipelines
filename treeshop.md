@@ -76,7 +76,10 @@ Press enter again to skip giving your SSH key a passphrase.
 
 #### Installing docker-machine
 
-*Information on installing docker-machine*
+From the home directory (type `cd` to get to home directory) type:
+
+    curl -L https://github.com/docker/machine/releases/download/v0.14.0/docker-machine-`uname -s`-`uname -m` > ~/docker-machine
+    install ~/docker-machine ~/bin/docker-machine
 
 Congratulations, you are now ready to set up your docker-machine.
 
@@ -213,7 +216,14 @@ Then type:
 
     docker-machine rm [machine name]
 
-Press `y` to confirm deletion.  If you used floating IPs you may need to log into openstack in order to release them.
+Press `y` to confirm deletion.  
+
+You may need to log into openstack in order to release the Floating IPs you used.
+While connected to the VPN, log into Openstack via http://podcloud.pod/.
+On the left side of the screen, under the 'Compute' menu, click on 'Access & Security'.
+In the middle of the screen, under **Access & Security**, click on the 'Floating IPs' tab.
+Under the 'Mapped Fixed IP Address' column (if you click the column name, the rows will be sorted alphabetically), if you see a row containing 'None XX.XXX.X.XX' (X stands for a number 0-9), click the box on the left hand column of the row.
+Then click the red 'Release Floating IPs' box in the top right area of the table.
 
 ## Notes
 
