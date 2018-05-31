@@ -94,6 +94,8 @@ Create needed directory  and navigate into the newly cloned repository:
     mkdir ~/.aws
     cd pipelines
 
+### Processing the test sample
+
 Create folders that match the [Treehouse storage layout](https://github.com/UCSC-Treehouse/pipelines/blob/master/fabfile.py#L12):
 
     mkdir -p treeshop/primary/original/TEST treeshop/downstream
@@ -146,7 +148,7 @@ Output:
     [10.50.102.245] out:
     Done.
 
-Process the samples in manifest.tsv with source and destination under the treeshop folder sending log output to the console and log.txt:
+Process the samples in manifest.txt with source and destination under the treeshop folder sending log output to the console and log.txt:
 
     fab process:manifest=manifest.txt,base=treeshop 2>&1 | tee log.txt
 
@@ -211,12 +213,23 @@ After this you should have the following under downstream:
 
 After confirming that you successfully processed your data, you may want to shut down your docker machine.
 This will free up resources and space for other Treehouse and Genomics Institute users.
-To do this you will need the name of the docker machine you want to shut down (type `docker-machine ls` for a list of machines).
+
+#### All machines
+
+To shut down all docker-machines type:
+
+    fab down
+
+#### Select machines
+
+To select which machines you want to shut down you will need the name of the docker machine you want to shut down (type `docker-machine ls` for a list of machines).
 Then type:
 
     docker-machine rm [machine name]
 
 Press `y` to confirm deletion.  
+
+#### Free Floating IPs
 
 You may need to log into openstack in order to release the Floating IPs you used.
 While connected to the VPN, log into Openstack via http://podcloud.pod/.
@@ -231,6 +244,25 @@ Error output with respect to finding and copying files will be written to error.
 
 Treeshop is a cheap and cheerful option to process 10's to up to 100 samples at a time. Larger scale projects will require a more sophisticated distributed computing approach. If you are not comfortable ssh'ng into various machines, running docker, and scp'ng results around then you may want to find someone that is before trying Treeshop.
 
+To set up multiple machines to process large amounts of samples you can give the `fab up` command a numeric variable input.
+For example, to spin up 5 machines type:
+
+    fab up:5
+
+When processing multiple samples you will need to format your manifest.txt appropriately.
+Each sample name will need to be placed on a separate line.
+For example:
+
+    1. TEST1
+    2. TEST2
+    3. TEST3
+    etc.
+
+The fabfile will automatically assign the docker-machines samples to run.  
+
+WARNING: When running `fab process`, it will automatically stop currently running docker-machines in order to work on the newly assigned samples.
+Either make sure your docker-machines have finished processing their samples or restrict which machines are available by using the hosts parameter. [Fabfile hosts](http://docs.fabfile.org/en/1.14/usage/execution.html#globally-via-the-command-line).
+
 While running 'fab top' will show you what dockers are running on each machine. After an initial
 delay copying the fastqs over you should see the alpine running (calculating md5) and then rnaseq.
 
@@ -243,3 +275,7 @@ quite a bit of extra provenance by writing methods.json files as well as organiz
 per the Treehouse storage layout. That said if you have some custom additional pipelines you want to
 run its fairly easy to just add another target to the Makefile and then copy/paste inside of the
 fabfile.py process method.
+
+If using multiple versions of the fabfile, you can select which version to use via the -f flag:
+
+    fab -f <path to fabfile> process:manifest=manifest.txt,base=treeshop 2>&1 | tee log.txt
