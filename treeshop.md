@@ -22,58 +22,6 @@ sense of if things are going smoothly.
 
 ## Getting Started
 
-### Prerequisites
-
-#### PATH
-
-If you are a new user, you may need to set up your PATH.
-You can do this by editing your .bashrc file (example uses VIM, feel free to use your favorite text editor).
-From your home directory type:
-
-    vim .bashrc
-
-In the text editor copy and paste:
-
-    #!/user/bin/env bash
-
-    #echo mypath=$PATH
-    export PATH=$HOME/bin:$PATH
-    export PATH=$PATH:/pod/pstore/groups/treehouse/sratoolkit/sratoolkit.2.8.2-1-centos_linux64/bin/:/scratch/<username>
-    export PATH=$HOME/.local/bin:$PATH
-
-You will also need to save your openstack cluster credentials.  Copy and paste:
-
-    # treeshop
-    export OS_USERNAME=<username>
-    export OS_PASSWORD=<password>
-
-Make sure to change the <username> in the second export PATH statement as well as entering your user name and password in the treeshop section.
-(You can press `i` in VIM to enter insert mode for writing in your user name and password).
-
-Press `ESC`, then type `:wq` to save and quit.
-
-#### SSH Key
-
-You will need a SSH key in order to use your machine.  
-If you know for certain that you have a SSH key, skip ahead to the Set Up section.
-
-To check if you already have a SSH key, type:
-
-    cd ~/.ssh
-
-If the output is "No such file or directory", then you do not have any SSH keys.
-If you successfully navigated to the directory, check that your key exists already:
-
-    ls id_*
-
-If your keys show up you can move on to the set up.
-If not, you can create your SSH key:
-
-    ssh-keygen -t rsa
-
-Press enter to save the key to the default directory.
-Press enter again to skip giving your SSH key a passphrase.
-
 #### Installing docker-machine
 
 From the home directory (type `cd` to get to home directory) type:
@@ -148,9 +96,9 @@ Output:
     [10.50.102.245] out:
     Done.
 
-Process the samples in manifest.txt with source and destination under the treeshop folder sending log output to the console and log.txt:
+Process the samples in manifest.tsv with source and destination under the treeshop folder sending log output to the console and log.txt:
 
-    fab process:manifest=manifest.txt,base=treeshop 2>&1 | tee log.txt
+    fab process:manifest=manifest.tsv,base=treeshop 2>&1 | tee log.txt
 
 Output:
 
@@ -212,31 +160,11 @@ After this you should have the following under downstream:
 ### Shut Down
 
 After confirming that you successfully processed your data, you may want to shut down your docker machine.
-This will free up resources and space for other Treehouse and Genomics Institute users.
-
-#### All machines
+This will free up resources and space for other users.
 
 To shut down all docker-machines type:
 
     fab down
-
-#### Select machines
-
-To select which machines you want to shut down you will need the name of the docker machine you want to shut down (type `docker-machine ls` for a list of machines).
-Then type:
-
-    docker-machine rm [machine name]
-
-Press `y` to confirm deletion.  
-
-#### Free Floating IPs
-
-You may need to log into openstack in order to release the Floating IPs you used.
-While connected to the VPN, log into Openstack via http://podcloud.pod/.
-On the left side of the screen, under the 'Compute' menu, click on 'Access & Security'.
-In the middle of the screen, under **Access & Security**, click on the 'Floating IPs' tab.
-Under the 'Mapped Fixed IP Address' column (if you click the column name, the rows will be sorted alphabetically), if you see a row containing 'None XX.XXX.X.XX' (X stands for a number 0-9), click the box on the left hand column of the row.
-Then click the red 'Release Floating IPs' box in the top right area of the table.
 
 ## Notes
 
@@ -249,7 +177,7 @@ For example, to spin up 5 machines type:
 
     fab up:5
 
-When processing multiple samples you will need to format your manifest.txt appropriately.
+When processing multiple samples you will need to format your manifest.tsv appropriately.
 Each sample name will need to be placed on a separate line.
 For example:
 
@@ -260,10 +188,11 @@ For example:
 
 The fabfile will automatically assign the docker-machines samples to run.  
 
-WARNING: When running `fab process`, it will automatically stop currently running docker-machines in order to work on the newly assigned samples.
-Either make sure your docker-machines have finished processing their samples or restrict which machines are available by using the hosts parameter. [Fabfile hosts](http://docs.fabfile.org/en/1.14/usage/execution.html#globally-via-the-command-line).
+WARNING:  Running `fab process` will automatically stop all currently running docker-machines in order to work on the newly assigned samples.
+Make sure your docker-machines have finished processing their samples.
+Users comfortable with changing commands may wish to learn how to restrict which machines are used to process samples by using the hosts parameter. [Fabfile hosts](http://docs.fabfile.org/en/1.14/usage/execution.html#globally-via-the-command-line).
 
-While running 'fab top' will show you what dockers are running on each machine. After an initial
+While running `fab top` will show you what dockers are running on each machine. After an initial
 delay copying the fastqs over you should see the alpine running (calculating md5) and then rnaseq.
 
 The first sample on a fresh machine will cause all the docker's to be pulled, later samples will be
@@ -276,6 +205,8 @@ per the Treehouse storage layout. That said if you have some custom additional p
 run its fairly easy to just add another target to the Makefile and then copy/paste inside of the
 fabfile.py process method.
 
-If using multiple versions of the fabfile, you can select which version to use via the -f flag:
+#### Advanced options
 
-    fab -f <path to fabfile> process:manifest=manifest.txt,base=treeshop 2>&1 | tee log.txt
+Users seeking more information on using multiple fabfiles or using different options should visit the Fabric website. [Fabric options](http://docs.fabfile.org/en/1.14/usage/fab.html).
+
+For more information on selectively shutting down docker-machines review the docker-machine documentation.  [docker-machine](https://docs.docker.com/machine/reference/rm/).
