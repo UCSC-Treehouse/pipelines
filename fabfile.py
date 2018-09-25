@@ -72,7 +72,6 @@ def _log_error(message):
     with open("errors.txt", "a") as error_log:
         error_log.write(message + "\n")
 
-
 @runs_once
 def up(count=1):
     """ Spin up 'count' docker machines """
@@ -83,13 +82,14 @@ def up(count=1):
         # Create a new keypair per machine due to https://github.com/docker/machine/issues/3261
         local("""
               docker-machine create --driver openstack \
-              --openstack-tenant-name treehouse \
-              --openstack-auth-url http://os-con-01.pod:5000/v2.0 \
+              --openstack-tenant-id 41e142e18a07427caf61ed29652c8c08 \
+              --openstack-auth-url http://controller:5000/v3/ \
+              --openstack-domain-id default \
               --openstack-ssh-user ubuntu \
               --openstack-net-name treehouse-net \
               --openstack-floatingip-pool ext-net \
-              --openstack-image-name Ubuntu-16.04-LTS-x86_64 \
-              --openstack-flavor-name z1.medium \
+              --openstack-image-name ubuntu-16.04-LTS-x86_64 \
+              --openstack-flavor-name m1.large \
               {}
               """.format(hostname))
 
@@ -130,22 +130,22 @@ def configure():
     sudo("apt-get -qy install make")
 
     # Install aws cli
-    sudo("apt-get -qy install python-minimal")
-    sudo("curl --silent --show-error --retry 5 https://bootstrap.pypa.io/get-pip.py | sudo python")
-    sudo("pip install awscli")
-    with warn_only():
-        put("~/.aws", "/home/ubuntu")
+    #sudo("apt-get -qy install python-minimal")
+    #sudo("curl --silent --show-error --retry 5 https://bootstrap.pypa.io/get-pip.py | sudo python")
+    #sudo("pip install awscli")
+    #with warn_only():
+    #    put("~/.aws", "/home/ubuntu")
 
     # openstack doesn't format /mnt correctly...
-    sudo("umount /mnt")
-    sudo("parted -s /dev/vdb mklabel gpt")
-    sudo("parted -s /dev/vdb mkpart primary 2048s 100%")
-    sudo("mkfs -t ext4 /dev/vdb1")
-    sudo("sed -i 's/auto/ext4/' /etc/fstab")
-    sudo("sed -i 's/vdb/vdb1/' /etc/fstab")
-    sudo("mount /mnt")
-    sudo("chmod 1777 /mnt")
-    sudo("chown ubuntu:ubuntu /mnt")
+    #sudo("umount /mnt")
+    #sudo("parted -s /dev/vdb mklabel gpt")
+    #sudo("parted -s /dev/vdb mkpart primary 2048s 100%")
+    #sudo("mkfs -t ext4 /dev/vdb1")
+    #sudo("sed -i 's/auto/ext4/' /etc/fstab")
+    #sudo("sed -i 's/vdb/vdb1/' /etc/fstab")
+    #sudo("mount /mnt")
+    #sudo("chmod 1777 /mnt")
+    #sudo("chown ubuntu:ubuntu /mnt")
 
     """ Downgrade docker to version supported by toil """
     run("wget https://packages.docker.com/1.12/apt/repo/pool/main/d/docker-engine/docker-engine_1.12.6~cs8-0~ubuntu-xenial_amd64.deb")  # NOQA
@@ -168,7 +168,7 @@ def reference():
     """ Configure each machine with reference files. """
     put("{}/md5".format(os.path.dirname(env.real_fabfile)), "/mnt")
     with cd("/mnt"):
-        run("REF_BASE='http://ceph-gw-01.pod/references' make reference")
+        run("make reference")
 
 
 def reset():
