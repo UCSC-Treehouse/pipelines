@@ -129,29 +129,13 @@ def configure():
     sudo("gpasswd -a ubuntu docker")
     sudo("apt-get -qy install make")
 
-    # Install aws cli
-    #sudo("apt-get -qy install python-minimal")
-    #sudo("curl --silent --show-error --retry 5 https://bootstrap.pypa.io/get-pip.py | sudo python")
-    #sudo("pip install awscli")
-    #with warn_only():
-    #    put("~/.aws", "/home/ubuntu")
-
-    # openstack doesn't format /mnt correctly...
-    #sudo("umount /mnt")
-    #sudo("parted -s /dev/vdb mklabel gpt")
-    #sudo("parted -s /dev/vdb mkpart primary 2048s 100%")
-    #sudo("mkfs -t ext4 /dev/vdb1")
-    #sudo("sed -i 's/auto/ext4/' /etc/fstab")
-    #sudo("sed -i 's/vdb/vdb1/' /etc/fstab")
-    #sudo("mount /mnt")
-    #sudo("chmod 1777 /mnt")
-    #sudo("chown ubuntu:ubuntu /mnt")
-
     """ Downgrade docker to version supported by toil """
     run("wget https://packages.docker.com/1.12/apt/repo/pool/main/d/docker-engine/docker-engine_1.12.6~cs8-0~ubuntu-xenial_amd64.deb")  # NOQA
-    sudo("apt-get -y remove docker docker-engine docker.io docker-ce")
+    sudo("apt-get -y remove docker docker-engine docker.io docker-ce containerd.io docker-ce-cli")
     sudo("rm -rf /var/lib/docker")
+    sudo("service docker stop") # Service gets upset if we dpkg the new version while it's still running
     sudo("dpkg -i docker-engine_1.12.6~cs8-0~ubuntu-xenial_amd64.deb")
+    sudo("service docker start")
 
     put("{}/Makefile".format(os.path.dirname(env.real_fabfile)), "/mnt")
 
