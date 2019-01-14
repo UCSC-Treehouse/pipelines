@@ -384,6 +384,11 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
             run("rm *.tar.gz")
             run("mv *.sorted.bam sorted.bam")
 
+        # Temporarily move sorted.bam to parent dir so we don't download it
+        # Still pretty hacky but prevents temporary exposure of sequence data to downstream dir
+        with cd("/mnt/outputs/expression"):
+            run("mv sorted.bam ..")
+
         # Update methods.json and copy output back
         dest = "{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9".format(output)
         local("mkdir -p {}".format(dest))
@@ -402,14 +407,9 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
         with open("{}/methods.json".format(dest), "w") as f:
             f.write(json.dumps(methods, indent=4))
 
-        """
-        FIXME HACK: Delete the RNASeq BAM favoring the bam output from umend QC.
-        Ideally would delete before back hauling but fabric doesn't support exclude
-        and the alternative would require moving it away and back before QC
-        or listing all files that should be backhauled from rnaseq.
-        """
-        print("Deleting local copy of RNASeq BAM in favor of UMEND BAM")
-        local("rm {}/*.bam".format(dest))
+        # Move sorted.bam back to the expression dir so that QC can find it.
+        with cd("/mnt/outputs/expression"):
+            run("mv ../sorted.bam .")
 
         # Calculate qc (bam-umend-qc)
         methods["start"] = datetime.datetime.utcnow().isoformat()
