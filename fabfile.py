@@ -419,6 +419,14 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
                 _log_error("{} Failed qc: {}".format(sample_id, result))
                 continue
 
+        # Store sortedByCoord.md.bam and .bai in primary/derived
+        # First, move it out of the way momentarily so it won't get
+        # downloaded into downstream
+        bamdest = "{}/primary/derived/{}".format(base, sample_id)
+        local("mkdir -p {}".format(bamdest))
+        with cd("/mnt/outputs/qc"):
+            run("mv sortedByCoord.md.bam* ..")
+
         # Update methods.json and copy output back
         dest = "{}/ucsctreehouse-bam-umend-qc-1.1.1-5f286d7".format(output)
         local("mkdir -p {}".format(dest))
@@ -426,6 +434,8 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
                 os.path.relpath(output, base))]
         methods["outputs"] = [
             os.path.relpath(p, base) for p in get("/mnt/outputs/qc/*", dest)]
+        methods["outputs"] += [ 
+            os.path.relpath(p, base) for p in get("/mnt/outputs/sortedByCoord.md.bam*", bamdest)]
         methods["end"] = datetime.datetime.utcnow().isoformat()
         methods["pipeline"] = {
             "source": "https://github.com/UCSC-Treehouse/bam-umend-qc",
@@ -437,6 +447,10 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
         }
         with open("{}/methods.json".format(dest), "w") as f:
             f.write(json.dumps(methods, indent=4))
+
+        # And move the QC bam back so it's available to the variant caller
+        with cd("/mnt/outputs/qc"):
+            run("mv ../sortedByCoord.md.bam* .")
 
         # Calculate fusion
         methods["start"] = datetime.datetime.utcnow().isoformat()
@@ -475,8 +489,7 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
         # Update methods.json and copy output back
         dest = "{}/ucsctreehouse-mini-var-call-0.0.1-1976429".format(output)
         local("mkdir -p {}".format(dest))
-        methods["inputs"] = ["{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9/sortedByCoord.md.bam".format( # NOQA
-                os.path.relpath(output, base))]
+        methods["inputs"] = ["{}/sortedByCoord.md.bam".format(bamdest)]
         methods["outputs"] = [
             os.path.relpath(p, base) for p in get("/mnt/outputs/variants/*", dest)]
         methods["end"] = datetime.datetime.utcnow().isoformat()
