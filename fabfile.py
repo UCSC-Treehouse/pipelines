@@ -297,7 +297,7 @@ def _put_primary(sample_id, base):
 
 
 @parallel
-def process(manifest="manifest.tsv", base=".", checksum_only="False"):
+def process(manifest="manifest.tsv", base=".", checksum_only="False", fusion_only="False"):
     """ Process all ids listed in 'manifest' """
 
     # Copy Makefile in case we changed it while developing...
@@ -337,120 +337,122 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
                           os.path.dirname(__file__)), capture=True),
                    "sample_id": sample_id}
 
-        # Calculate checksums
-        methods["start"] = datetime.datetime.utcnow().isoformat()
-        with settings(warn_only=True):
-            result = run("cd /mnt && make checksums")
-            if result.failed:
-                _log_error("{} Failed checksums: {}".format(sample_id, result))
+        if fusion_only == "False":
+            # Calculate checksums
+            methods["start"] = datetime.datetime.utcnow().isoformat()
+            with settings(warn_only=True):
+                result = run("cd /mnt && make checksums")
+                if result.failed:
+                    _log_error("{} Failed checksums: {}".format(sample_id, result))
+                    continue
+
+            # Update methods.json and copy output back
+            dest = "{}/md5sum-3.7.0-ccba511".format(output)
+            local("mkdir -p {}".format(dest))
+            methods["inputs"] = fastqs
+            methods["outputs"] = [
+                os.path.relpath(p, base) for p in get("/mnt/outputs/checksums/*", dest)]
+            methods["end"] = datetime.datetime.utcnow().isoformat()
+            methods["pipeline"] = {
+                "source": "https://github.com/gliderlabs/docker-alpine",
+                "docker": {
+                    "url": "https://hub.docker.com/alpine",
+                    "version": "3.7.0",
+                    "hash": "sha256:ccba511b1d6b5f1d83825a94f9d5b05528db456d9cf14a1ea1db892c939cda64" # NOQA
+                }
+            }
+            with open("{}/methods.json".format(dest), "w") as f:
+                f.write(json.dumps(methods, indent=4))
+
+            if checksum_only == "True":
                 continue
 
-        # Update methods.json and copy output back
-        dest = "{}/md5sum-3.7.0-ccba511".format(output)
-        local("mkdir -p {}".format(dest))
-        methods["inputs"] = fastqs
-        methods["outputs"] = [
-            os.path.relpath(p, base) for p in get("/mnt/outputs/checksums/*", dest)]
-        methods["end"] = datetime.datetime.utcnow().isoformat()
-        methods["pipeline"] = {
-            "source": "https://github.com/gliderlabs/docker-alpine",
-            "docker": {
-                "url": "https://hub.docker.com/alpine",
-                "version": "3.7.0",
-                "hash": "sha256:ccba511b1d6b5f1d83825a94f9d5b05528db456d9cf14a1ea1db892c939cda64" # NOQA
+            # Calculate expression
+            methods["start"] = datetime.datetime.utcnow().isoformat()
+            with settings(warn_only=True):
+                result = run("cd /mnt && make expression")
+                if result.failed:
+                    _log_error("{} Failed expression: {}".format(sample_id, result))
+                    continue
+
+            # Create output parent - wait till now in case first pipeline halted
+            # Can we just remove this??
+            #output = "{}/downstream/{}/secondary".format(base, sample_id)
+            #local("mkdir -p {}".format(output))
+
+            # Unpack outputs and normalize names so we don't have sample id in them
+            with cd("/mnt/outputs/expression"):
+                run("tar -xvf *.tar.gz --strip 1")
+                run("rm *.tar.gz")
+                run("mv *.sorted.bam sorted.bam")
+
+            # Temporarily move sorted.bam to parent dir so we don't download it
+            # Still pretty hacky but prevents temporary exposure of sequence data to downstream dir
+            with cd("/mnt/outputs/expression"):
+                run("mv sorted.bam ..")
+
+            # Update methods.json and copy output back
+            dest = "{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9".format(output)
+            local("mkdir -p {}".format(dest))
+            methods["inputs"] = fastqs
+            methods["outputs"] = [
+                os.path.relpath(p, base) for p in get("/mnt/outputs/expression/*", dest)]
+            methods["end"] = datetime.datetime.utcnow().isoformat()
+            methods["pipeline"] = {
+                "source": "https://github.com/BD2KGenomics/toil-rnaseq",
+                "docker": {
+                    "url": "https://quay.io/ucsc_cgl/rnaseq-cgl-pipeline",
+                    "version": "3.3.4-1.12.3",
+                    "hash": "sha256:785eee9f750ab91078d84d1ee779b6f74717eafc09e49da817af6b87619b0756" # NOQA
+                }
             }
-        }
-        with open("{}/methods.json".format(dest), "w") as f:
-            f.write(json.dumps(methods, indent=4))
+            with open("{}/methods.json".format(dest), "w") as f:
+                f.write(json.dumps(methods, indent=4))
 
-        if checksum_only == "True":
-            continue
+            # Move sorted.bam back to the expression dir so that QC can find it.
+            with cd("/mnt/outputs/expression"):
+                run("mv ../sorted.bam .")
 
-        # Calculate expression
-        methods["start"] = datetime.datetime.utcnow().isoformat()
-        with settings(warn_only=True):
-            result = run("cd /mnt && make expression")
-            if result.failed:
-                _log_error("{} Failed expression: {}".format(sample_id, result))
-                continue
+            # Calculate qc (bam-umend-qc)
+            methods["start"] = datetime.datetime.utcnow().isoformat()
+            with settings(warn_only=True):
+                result = run("cd /mnt && make qc")
+                if result.failed:
+                    _log_error("{} Failed qc: {}".format(sample_id, result))
+                    continue
 
-        # Create output parent - wait till now in case first pipeline halted
-        output = "{}/downstream/{}/secondary".format(base, sample_id)
-        local("mkdir -p {}".format(output))
+            # Store sortedByCoord.md.bam and .bai in primary/derived
+            # First, move it out of the way momentarily so it won't get
+            # downloaded into downstream
+            bamdest = "{}/primary/derived/{}".format(base, sample_id)
+            local("mkdir -p {}".format(bamdest))
+            with cd("/mnt/outputs/qc"):
+                run("mv sortedByCoord.md.bam* ..")
 
-        # Unpack outputs and normalize names so we don't have sample id in them
-        with cd("/mnt/outputs/expression"):
-            run("tar -xvf *.tar.gz --strip 1")
-            run("rm *.tar.gz")
-            run("mv *.sorted.bam sorted.bam")
-
-        # Temporarily move sorted.bam to parent dir so we don't download it
-        # Still pretty hacky but prevents temporary exposure of sequence data to downstream dir
-        with cd("/mnt/outputs/expression"):
-            run("mv sorted.bam ..")
-
-        # Update methods.json and copy output back
-        dest = "{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9".format(output)
-        local("mkdir -p {}".format(dest))
-        methods["inputs"] = fastqs
-        methods["outputs"] = [
-            os.path.relpath(p, base) for p in get("/mnt/outputs/expression/*", dest)]
-        methods["end"] = datetime.datetime.utcnow().isoformat()
-        methods["pipeline"] = {
-            "source": "https://github.com/BD2KGenomics/toil-rnaseq",
-            "docker": {
-                "url": "https://quay.io/ucsc_cgl/rnaseq-cgl-pipeline",
-                "version": "3.3.4-1.12.3",
-                "hash": "sha256:785eee9f750ab91078d84d1ee779b6f74717eafc09e49da817af6b87619b0756" # NOQA
+            # Update methods.json and copy output back
+            dest = "{}/ucsctreehouse-bam-umend-qc-1.1.1-5f286d7".format(output)
+            local("mkdir -p {}".format(dest))
+            methods["inputs"] = ["{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9/sorted.bam".format(
+                    os.path.relpath(output, base))]
+            methods["outputs"] = [
+                os.path.relpath(p, base) for p in get("/mnt/outputs/qc/*", dest)]
+            methods["outputs"] += [ 
+                os.path.relpath(p, base) for p in get("/mnt/outputs/sortedByCoord.md.bam*", bamdest)]
+            methods["end"] = datetime.datetime.utcnow().isoformat()
+            methods["pipeline"] = {
+                "source": "https://github.com/UCSC-Treehouse/bam-umend-qc",
+                "docker": {
+                    "url": "https://hub.docker.com/r/ucsctreehouse/bam-umend-qc",
+                    "version": "1.1.1",
+                    "hash": "sha256:5f286d72395fcc5085a96d463ae3511554acfa4951aef7d691bba2181596c31f" # NOQA
+                }
             }
-        }
-        with open("{}/methods.json".format(dest), "w") as f:
-            f.write(json.dumps(methods, indent=4))
+            with open("{}/methods.json".format(dest), "w") as f:
+                f.write(json.dumps(methods, indent=4))
 
-        # Move sorted.bam back to the expression dir so that QC can find it.
-        with cd("/mnt/outputs/expression"):
-            run("mv ../sorted.bam .")
-
-        # Calculate qc (bam-umend-qc)
-        methods["start"] = datetime.datetime.utcnow().isoformat()
-        with settings(warn_only=True):
-            result = run("cd /mnt && make qc")
-            if result.failed:
-                _log_error("{} Failed qc: {}".format(sample_id, result))
-                continue
-
-        # Store sortedByCoord.md.bam and .bai in primary/derived
-        # First, move it out of the way momentarily so it won't get
-        # downloaded into downstream
-        bamdest = "{}/primary/derived/{}".format(base, sample_id)
-        local("mkdir -p {}".format(bamdest))
-        with cd("/mnt/outputs/qc"):
-            run("mv sortedByCoord.md.bam* ..")
-
-        # Update methods.json and copy output back
-        dest = "{}/ucsctreehouse-bam-umend-qc-1.1.1-5f286d7".format(output)
-        local("mkdir -p {}".format(dest))
-        methods["inputs"] = ["{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9/sorted.bam".format(
-                os.path.relpath(output, base))]
-        methods["outputs"] = [
-            os.path.relpath(p, base) for p in get("/mnt/outputs/qc/*", dest)]
-        methods["outputs"] += [ 
-            os.path.relpath(p, base) for p in get("/mnt/outputs/sortedByCoord.md.bam*", bamdest)]
-        methods["end"] = datetime.datetime.utcnow().isoformat()
-        methods["pipeline"] = {
-            "source": "https://github.com/UCSC-Treehouse/bam-umend-qc",
-            "docker": {
-                "url": "https://hub.docker.com/r/ucsctreehouse/bam-umend-qc",
-                "version": "1.1.1",
-                "hash": "sha256:5f286d72395fcc5085a96d463ae3511554acfa4951aef7d691bba2181596c31f" # NOQA
-            }
-        }
-        with open("{}/methods.json".format(dest), "w") as f:
-            f.write(json.dumps(methods, indent=4))
-
-        # And move the QC bam back so it's available to the variant caller
-        with cd("/mnt/outputs/qc"):
-            run("mv ../sortedByCoord.md.bam* .")
+            # And move the QC bam back so it's available to the variant caller
+            with cd("/mnt/outputs/qc"):
+                run("mv ../sortedByCoord.md.bam* .")
 
         # Calculate fusion
         methods["start"] = datetime.datetime.utcnow().isoformat()
@@ -478,28 +480,29 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
         with open("{}/methods.json".format(dest), "w") as f:
             f.write(json.dumps(methods, indent=4))
 
-        # Calculate variants
-        methods["start"] = datetime.datetime.utcnow().isoformat()
-        with settings(warn_only=True):
-            result = run("cd /mnt && make variants")
-            if result.failed:
-                _log_error("{} Failed variants: {}".format(sample_id, result))
-                continue
+        if fusion_only == "False":
+            # Calculate variants
+            methods["start"] = datetime.datetime.utcnow().isoformat()
+            with settings(warn_only=True):
+                result = run("cd /mnt && make variants")
+                if result.failed:
+                    _log_error("{} Failed variants: {}".format(sample_id, result))
+                    continue
 
-        # Update methods.json and copy output back
-        dest = "{}/ucsctreehouse-mini-var-call-0.0.1-1976429".format(output)
-        local("mkdir -p {}".format(dest))
-        methods["inputs"] = ["{}/sortedByCoord.md.bam".format(bamdest)]
-        methods["outputs"] = [
-            os.path.relpath(p, base) for p in get("/mnt/outputs/variants/*", dest)]
-        methods["end"] = datetime.datetime.utcnow().isoformat()
-        methods["pipeline"] = {
-            "source": "https://github.com/UCSC-Treehouse/mini-var-call",
-            "docker": {
-                "url": "https://hub.docker.com/r/ucsctreehouse/mini-var-call",
-                "version": "0.0.1",
-                "hash": "sha256:197642937956ae73465ad2ef4b42501681ffc3ef07fecb703f58a3487eab37ff" # NOQA
+            # Update methods.json and copy output back
+            dest = "{}/ucsctreehouse-mini-var-call-0.0.1-1976429".format(output)
+            local("mkdir -p {}".format(dest))
+            methods["inputs"] = ["{}/sortedByCoord.md.bam".format(bamdest)]
+            methods["outputs"] = [
+                os.path.relpath(p, base) for p in get("/mnt/outputs/variants/*", dest)]
+            methods["end"] = datetime.datetime.utcnow().isoformat()
+            methods["pipeline"] = {
+                "source": "https://github.com/UCSC-Treehouse/mini-var-call",
+                "docker": {
+                    "url": "https://hub.docker.com/r/ucsctreehouse/mini-var-call",
+                    "version": "0.0.1",
+                    "hash": "sha256:197642937956ae73465ad2ef4b42501681ffc3ef07fecb703f58a3487eab37ff" # NOQA
+                }
             }
-        }
-        with open("{}/methods.json".format(dest), "w") as f:
-            f.write(json.dumps(methods, indent=4))
+            with open("{}/methods.json".format(dest), "w") as f:
+                f.write(json.dumps(methods, indent=4))
