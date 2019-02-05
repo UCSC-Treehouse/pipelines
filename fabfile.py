@@ -298,6 +298,7 @@ def _put_primary(sample_id, base):
 
 @parallel
 def process(manifest="manifest.tsv", base=".", checksum_only="False"):
+    print("Special branch - skips fusion and bam download!")
     """ Process all ids listed in 'manifest' """
 
     # Copy Makefile in case we changed it while developing...
@@ -423,7 +424,8 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
         # First, move it out of the way momentarily so it won't get
         # downloaded into downstream
         bamdest = "{}/primary/derived/{}".format(base, sample_id)
-        local("mkdir -p {}".format(bamdest))
+        # Special branch: Don't move into primary/derived
+        #local("mkdir -p {}".format(bamdest))
         with cd("/mnt/outputs/qc"):
             run("mv sortedByCoord.md.bam* ..")
 
@@ -434,8 +436,9 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
                 os.path.relpath(output, base))]
         methods["outputs"] = [
             os.path.relpath(p, base) for p in get("/mnt/outputs/qc/*", dest)]
-        methods["outputs"] += [ 
-            os.path.relpath(p, base) for p in get("/mnt/outputs/sortedByCoord.md.bam*", bamdest)]
+        # Special branch: Don't move into primary/derived
+        #methods["outputs"] += [ 
+        #    os.path.relpath(p, base) for p in get("/mnt/outputs/sortedByCoord.md.bam*", bamdest)]
         methods["end"] = datetime.datetime.utcnow().isoformat()
         methods["pipeline"] = {
             "source": "https://github.com/UCSC-Treehouse/bam-umend-qc",
@@ -453,30 +456,32 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
             run("mv ../sortedByCoord.md.bam* .")
 
         # Calculate fusion
-        methods["start"] = datetime.datetime.utcnow().isoformat()
-        with settings(warn_only=True):
-            result = run("cd /mnt && make fusions")
-            if result.failed:
-                _log_error("{} Failed fusions: {}".format(sample_id, result))
-                continue
-
-        # Update methods.json and copy output back
-        dest = "{}/ucsctreehouse-fusion-0.1.0-3faac56".format(output)
-        local("mkdir -p {}".format(dest))
-        methods["inputs"] = fastqs
-        methods["outputs"] = [
-            os.path.relpath(p, base) for p in get("/mnt/outputs/fusions/*", dest)]
-        methods["end"] = datetime.datetime.utcnow().isoformat()
-        methods["pipeline"] = {
-            "source": "https://github.com/UCSC-Treehouse/fusion",
-            "docker": {
-                "url": "https://hub.docker.com/r/ucsctreehouse/fusion",
-                "version": "0.1.0",
-                "hash": "sha256:3faac562666363fa4a80303943a8f5c14854a5f458676e1248a956c13fb534fd" # NOQA
-            }
-        }
-        with open("{}/methods.json".format(dest), "w") as f:
-            f.write(json.dumps(methods, indent=4))
+        # Special branch: Don't  calculate fusion.
+        print("Skipping fusion!")
+#        methods["start"] = datetime.datetime.utcnow().isoformat()
+#        with settings(warn_only=True):
+#            result = run("cd /mnt && make fusions")
+#            if result.failed:
+#                _log_error("{} Failed fusions: {}".format(sample_id, result))
+#                continue
+#
+#        # Update methods.json and copy output back
+#        dest = "{}/ucsctreehouse-fusion-0.1.0-3faac56".format(output)
+#        local("mkdir -p {}".format(dest))
+#        methods["inputs"] = fastqs
+#        methods["outputs"] = [
+#            os.path.relpath(p, base) for p in get("/mnt/outputs/fusions/*", dest)]
+#        methods["end"] = datetime.datetime.utcnow().isoformat()
+#        methods["pipeline"] = {
+#            "source": "https://github.com/UCSC-Treehouse/fusion",
+#            "docker": {
+#                "url": "https://hub.docker.com/r/ucsctreehouse/fusion",
+#                "version": "0.1.0",
+#                "hash": "sha256:3faac562666363fa4a80303943a8f5c14854a5f458676e1248a956c13fb534fd" # NOQA
+#            }
+#        }
+#        with open("{}/methods.json".format(dest), "w") as f:
+#            f.write(json.dumps(methods, indent=4))
 
         # Calculate variants
         methods["start"] = datetime.datetime.utcnow().isoformat()
