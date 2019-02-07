@@ -478,6 +478,32 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
         with open("{}/methods.json".format(dest), "w") as f:
             f.write(json.dumps(methods, indent=4))
 
+        # Calculate jfkm
+        methods["start"] = datetime.datetime.utcnow().isoformat()
+        with settings(warn_only=True):
+            result = run("cd /mnt && make jfkm")
+            if result.failed:
+                _log_error("{} Failed jfkm: {}".format(sample_id, result))
+                continue
+
+        # Update methods.json and copy output back
+        dest = "{}/jpfeil-jfkm-0.1.0-26350e0".format(output)
+        local("mkdir -p {}".format(dest))
+        methods["inputs"] = fastqs
+        methods["outputs"] = [
+            os.path.relpath(p, base) for p in get("/mnt/outputs/jfkm/*", dest)]
+        methods["end"] = datetime.datetime.utcnow().isoformat()
+        methods["pipeline"] = {
+            "source": "https://github.com/UCSC-Treehouse/jfkm",
+            "docker": {
+                "url": "https://cloud.docker.com/repository/docker/jpfeil/jfkm",
+                "version": "0.1.0",
+                "hash": "sha256:26350e02608115341fe8e735ef6d08216e71d962b176eb53b9a7bc54ef715c10" # NOQA
+            }
+        }
+        with open("{}/methods.json".format(dest), "w") as f:
+            f.write(json.dumps(methods, indent=4))
+
         # Calculate variants
         methods["start"] = datetime.datetime.utcnow().isoformat()
         with settings(warn_only=True):

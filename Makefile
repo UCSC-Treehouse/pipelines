@@ -90,6 +90,19 @@ variants:
 			/inputs/sample.bam \
 			/outputs
 
+jfkm:
+	echo "Running Jellyfish - Km pipeline on $(R1) and $(R2)"
+	mkdir -p outputs/jfkm
+	docker run --rm \
+	       -v $(shell pwd)/samples:/data/samples \
+	       -v $(shell pwd)/outputs/jfkm:/data/outputs \
+               jpfeil/jfkm:0.1.0 \
+                        --CPU `nproc` \
+                        --FLT3-ITD \
+                        --left-fq $(R1) \
+                        --right-fq $(R2) \
+                        --output-dir outputs
+
 verify:
 	echo "Verifying md5 of output of TEST file"
 	tar -xOzvf outputs/expression/TEST_R1merged.tar.gz TEST_R1merged/RSEM/rsem_genes.results | md5sum -c md5/expression.md5
