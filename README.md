@@ -13,6 +13,7 @@ Makefile to run the expression, fusion and variant secondary pipelines used by [
 Clone this repository and then run 'make':
 
     git clone https://github.com/UCSC-Treehouse/pipelines.git
+    cd pipelines
     make
 
 References will be downloaded, verified via MD5, and then the included TEST paired fastqs will be run through the pipelines and outputs verified. This will take approximately 20-30 minutes on a 16 core machine excluding reference file download time. At the end you should see:
