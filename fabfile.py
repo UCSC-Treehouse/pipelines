@@ -134,7 +134,7 @@ def configure():
     sudo("apt-get -y remove docker docker-engine docker.io docker-ce containerd.io docker-ce-cli")
     sudo("rm -rf /var/lib/docker")
     sudo("service docker stop") # Service gets upset if we dpkg the new version while it's still running
-    sudo("sudo apt-get -y install libltdl7")
+    sudo("apt-get -y install libltdl7")
     sudo("dpkg -i docker-engine_1.12.6~cs8-0~ubuntu-xenial_amd64.deb")
     sudo("service docker start")
 
