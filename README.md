@@ -83,7 +83,7 @@ For additional information and source code for each pipeline see the following g
 
 [https://github.com/UCSC-Treehouse/mini-var-call]
 
-For specific paremeters and versions used in this pipeline, see [the Pipelines Versions document](CGL_TOIL_RNA-Seq_Pipeline_versions.md).
+For specific parameters and versions used in this pipeline, see [the Pipelines Versions document](CGL_TOIL_RNA-Seq_Pipeline_versions.md).
 
 
 ## Treehouse Internal Use
