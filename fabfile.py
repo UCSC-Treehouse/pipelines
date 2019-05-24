@@ -233,7 +233,40 @@ def _put_primary(sample_id, base):
     return []
 
 
-def pizzly(base, output, methods):
+def _jfkm(base, output, methods, sample_id, fastqs):
+    """Calculate jfkm"""
+    methods["start"] = datetime.datetime.utcnow().isoformat()
+    with settings(warn_only=True):
+        result = run("cd /mnt && make jfkm")
+        if result.failed:
+            _log_error("{} Failed jfkm: {}".format(sample_id, result))
+            return False
+
+    # Update methods.json and copy output back, omitting counts.jf by moving it temporarily
+    with cd("/mnt/outputs/jfkm"):
+        run("mv counts.jf ..")
+    dest = "{}/jpfeil-jfkm-0.1.0-26350e0".format(output)
+    local("mkdir -p {}".format(dest))
+    methods["inputs"] = fastqs
+    methods["outputs"] = [
+        os.path.relpath(p, base) for p in get("/mnt/outputs/jfkm/*", dest)]
+    methods["end"] = datetime.datetime.utcnow().isoformat()
+    methods["pipeline"] = {
+        "source": "https://github.com/UCSC-Treehouse/jfkm",
+        "docker": {
+            "url": "https://cloud.docker.com/repository/docker/jpfeil/jfkm",
+            "version": "0.1.0",
+            "hash": "sha256:26350e02608115341fe8e735ef6d08216e71d962b176eb53b9a7bc54ef715c10" # NOQA
+        }
+    }
+    with open("{}/methods.json".format(dest), "w") as f:
+        f.write(json.dumps(methods, indent=4))
+    with cd("/mnt/outputs/jfkm"):
+        run("mv ../counts.jf .")
+    return True
+
+
+def _pizzly(base, output, methods, sample_id):
     """
     Run the Pizzly docker on a single sample and backhaul pizzly-fusion.final
     Expects that expression Kallisto output is available in pwd/outputs/expression/Kallisto
@@ -280,13 +313,17 @@ def one_docker(manifest="manifest.tsv", base=".", checksum_only="False"):
     for sample_id in sample_ids:
         print("{} Running one {}".format(env.host, sample_id))
 
+        # Intialize fake fastqs - this is only for printing to methods
+        # The inner docker finds fastqs via the Makefile
+        fastqs = [ "PLACEHOLDER-PATH/placeholder_R1.fastq.gz", "PLACEHOLDER-PATH/placeholder_R2.fastq.gz"]
+
         # Initialize methods.json and output
         methods = { "note" : "This is a test output file!" }
         output = "{}/downstream/{}/secondary".format(base, sample_id)
         local("mkdir -p {}".format(output))
 
         # Run your docker here
-        pizzly(base, output, methods)
+        _jfkm(base, output, methods, sample_id, fastqs)
 
 
 @parallel
@@ -449,7 +486,7 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
             run("mv ../sortedByCoord.md.bam* .")
 
         # Calculate pizzly from Kallisto results
-        if not pizzly(base, output, methods):
+        if not _pizzly(base, output, methods, sample_id):
             continue
 
         # Calculate fusion
@@ -478,31 +515,9 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
         with open("{}/methods.json".format(dest), "w") as f:
             f.write(json.dumps(methods, indent=4))
 
-        # Calculate jfkm
-        methods["start"] = datetime.datetime.utcnow().isoformat()
-        with settings(warn_only=True):
-            result = run("cd /mnt && make jfkm")
-            if result.failed:
-                _log_error("{} Failed jfkm: {}".format(sample_id, result))
-                continue
-
-        # Update methods.json and copy output back
-        dest = "{}/jpfeil-jfkm-0.1.0-26350e0".format(output)
-        local("mkdir -p {}".format(dest))
-        methods["inputs"] = fastqs
-        methods["outputs"] = [
-            os.path.relpath(p, base) for p in get("/mnt/outputs/jfkm/*", dest)]
-        methods["end"] = datetime.datetime.utcnow().isoformat()
-        methods["pipeline"] = {
-            "source": "https://github.com/UCSC-Treehouse/jfkm",
-            "docker": {
-                "url": "https://cloud.docker.com/repository/docker/jpfeil/jfkm",
-                "version": "0.1.0",
-                "hash": "sha256:26350e02608115341fe8e735ef6d08216e71d962b176eb53b9a7bc54ef715c10" # NOQA
-            }
-        }
-        with open("{}/methods.json".format(dest), "w") as f:
-            f.write(json.dumps(methods, indent=4))
+        # Calculate jfkm from fastq files
+        if not _jfkm(base, output, methods, sample_id, fastqs):
+            continue
 
         # Calculate variants
         methods["start"] = datetime.datetime.utcnow().isoformat()

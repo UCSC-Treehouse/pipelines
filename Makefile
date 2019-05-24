@@ -8,7 +8,7 @@ R2 = $(shell find samples -iregex ".+2[^0-9]*$$" | head -1)
 
 REF_BASE ?= "http://hgdownload.soe.ucsc.edu/treehouse/reference"
 
-all: reference expression qc fusions variants verify
+all: reference expression qc fusions variants jfkm pizzly verify
 
 reference:
 	echo "Downloading reference files from $(REF_BASE)..."
