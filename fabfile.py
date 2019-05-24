@@ -233,6 +233,56 @@ def _put_primary(sample_id, base):
     return []
 
 
+def _fusions(base, output, methods, sample_id, fastqs):
+    """Calculate fusion from fastq files"""
+    methods["start"] = datetime.datetime.utcnow().isoformat()
+    with settings(warn_only=True):
+        result = run("cd /mnt && make fusions")
+        if result.failed:
+            _log_error("{} Failed fusions: {}".format(sample_id, result))
+            return False
+
+    # Might generate FusionInspector.junction_reads.bam, FusionInspector.spanning_reads.bam
+    # If these are present, store them in primary/derived as they contain sequence data
+    with settings(warn_only=True):
+        with cd("/mnt/outputs/fusions"):
+            result = run("mv -v FusionInspector.*_reads.bam ..")
+    if result.failed:
+        bamdest = False
+        print("Can't move FusionInspector bam files for {}; assume not generated.".format(sample_id))
+    else:
+        bamdest = "{}/primary/derived/{}".format(base, sample_id)
+        local("mkdir -p {}".format(bamdest))
+
+    # Update methods.json and copy output back, including bams to bamdest if present
+    dest = "{}/ucsctreehouse-fusion-0.1.0-3faac56".format(output)
+    local("mkdir -p {}".format(dest))
+    methods["inputs"] = fastqs
+    methods["outputs"] = [
+        os.path.relpath(p, base) for p in get("/mnt/outputs/fusions/*", dest)]
+    if bamdest:
+        methods["outputs"] += [
+            os.path.relpath(p, base) for p in get("/mnt/outputs/FusionInspector.*_reads.bam", bamdest)]
+    methods["end"] = datetime.datetime.utcnow().isoformat()
+    methods["pipeline"] = {
+        "source": "https://github.com/UCSC-Treehouse/fusion",
+        "docker": {
+            "url": "https://hub.docker.com/r/ucsctreehouse/fusion",
+            "version": "0.1.0",
+            "hash": "sha256:3faac562666363fa4a80303943a8f5c14854a5f458676e1248a956c13fb534fd" # NOQA
+        }
+    }
+    with open("{}/methods.json".format(dest), "w") as f:
+        f.write(json.dumps(methods, indent=4))
+
+    # And move the FusionInspector files back to fusions dir.
+    if bamdest:
+        with cd("/mnt/outputs/fusions"):
+            run("mv -v ../FusionInspector.*_reads.bam .")
+
+    return True
+
+
 def _jfkm(base, output, methods, sample_id, fastqs):
     """Calculate jfkm"""
     methods["start"] = datetime.datetime.utcnow().isoformat()
@@ -490,30 +540,8 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
             continue
 
         # Calculate fusion
-        methods["start"] = datetime.datetime.utcnow().isoformat()
-        with settings(warn_only=True):
-            result = run("cd /mnt && make fusions")
-            if result.failed:
-                _log_error("{} Failed fusions: {}".format(sample_id, result))
-                continue
-
-        # Update methods.json and copy output back
-        dest = "{}/ucsctreehouse-fusion-0.1.0-3faac56".format(output)
-        local("mkdir -p {}".format(dest))
-        methods["inputs"] = fastqs
-        methods["outputs"] = [
-            os.path.relpath(p, base) for p in get("/mnt/outputs/fusions/*", dest)]
-        methods["end"] = datetime.datetime.utcnow().isoformat()
-        methods["pipeline"] = {
-            "source": "https://github.com/UCSC-Treehouse/fusion",
-            "docker": {
-                "url": "https://hub.docker.com/r/ucsctreehouse/fusion",
-                "version": "0.1.0",
-                "hash": "sha256:3faac562666363fa4a80303943a8f5c14854a5f458676e1248a956c13fb534fd" # NOQA
-            }
-        }
-        with open("{}/methods.json".format(dest), "w") as f:
-            f.write(json.dumps(methods, indent=4))
+        if not _fusions(base, output, methods, sample_id, fastqs):
+            continue
 
         # Calculate jfkm from fastq files
         if not _jfkm(base, output, methods, sample_id, fastqs):
