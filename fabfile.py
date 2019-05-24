@@ -169,70 +169,6 @@ def reset():
         sudo("chown -R ubuntu:ubuntu /mnt")
 
 
-@parallel
-def process_ceph(manifest="manifest.tsv", base=".", checksum_only="False"):
-    """ Experimental processing from ceph or s3 storage """
-    import boto3
-    from botocore.config import Config
-
-    boto3.setup_default_session(profile_name="ceph")
-    s3 = boto3.resource("s3", endpoint_url="http://ceph-gw-01.pod",
-                        config=Config(signature_version='s3'))
-    fastqs = sorted([obj.key for obj in s3.Bucket("CCLE").objects.all()
-                     if re.search(r"fastq|fq", obj.key)])
-    print("Found {} fastq".format(len(fastqs)))
-    print(fastqs[0:8])
-
-    pairs = [(fastqs[i], fastqs[i+1]) for i in range(0, len(fastqs), 2)]
-    print("Pairs:", pairs[0:4])
-
-    # DEBUG: Skip first big one and the other 2 we already did
-    pairs = pairs[3:]
-
-    for pair in pairs[env.hosts.index(env.host)::len(env.hosts)]:
-        print("Processing {} on {}".format(pair, env.host))
-        reset()
-
-        # Copy files from s3 down to machine
-        run("""
-            aws --profile ceph --endpoint http://ceph-gw-01.pod/ \
-                s3 cp --only-show-errors s3://CCLE/{} /mnt/samples/
-            """.format(pair[0]))
-        run("""
-            aws --profile ceph --endpoint http://ceph-gw-01.pod/ \
-                s3 cp --only-show-errors s3://CCLE/{} /mnt/samples/
-            """.format(pair[1]))
-
-        # Run checksum as a test
-        with settings(warn_only=True):
-            result = run("cd /mnt && make expression qc")
-            if result.failed:
-                _log_error("{} Failed checksums: {}".format(pair, result))
-                continue
-
-        # Unpack outputs and normalize names so we don't have sample id in them
-        # Delete bam so we don't backhaul it
-        with cd("/mnt/outputs/expression"):
-            run("tar -xvf *.tar.gz --strip 1")
-            run("rm *.tar.gz")
-            run("rm -f *.bam")
-
-        # Copy the results back to pstore
-        sample_id = pair[0].split(".")[0]
-        output = "{}/downstream/{}/secondary".format(base, sample_id)
-        local("mkdir -p {}".format(output))
-
-        dest = "{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9".format(output)
-        local("mkdir -p {}".format(dest))
-        results = get("/mnt/outputs/expression/*", dest)
-        print(results)
-
-        dest = "{}/ucsctreehouse-bam-umend-qc-1.1.0-cc481e4".format(output)
-        local("mkdir -p {}".format(dest))
-        results = get("/mnt/outputs/qc/*", dest)
-        print(results)
-
-
 def _put_primary(sample_id, base):
     """ Search all fastqs and bams, convert and put to machine as needed """
 
@@ -295,6 +231,99 @@ def _put_primary(sample_id, base):
 
     print("ERROR Unable to find or derive secondary input for {}".format(sample_id))
     return []
+
+
+def _jfkm(base, output, methods, sample_id, fastqs):
+    """Calculate jfkm"""
+    methods["start"] = datetime.datetime.utcnow().isoformat()
+    with settings(warn_only=True):
+        result = run("cd /mnt && make jfkm")
+        if result.failed:
+            _log_error("{} Failed jfkm: {}".format(sample_id, result))
+            return False
+
+    # Update methods.json and copy output back, omitting counts.jf by moving it temporarily
+    with cd("/mnt/outputs/jfkm"):
+        run("mv counts.jf ..")
+    dest = "{}/jpfeil-jfkm-0.1.0-26350e0".format(output)
+    local("mkdir -p {}".format(dest))
+    methods["inputs"] = fastqs
+    methods["outputs"] = [
+        os.path.relpath(p, base) for p in get("/mnt/outputs/jfkm/*", dest)]
+    methods["end"] = datetime.datetime.utcnow().isoformat()
+    methods["pipeline"] = {
+        "source": "https://github.com/UCSC-Treehouse/jfkm",
+        "docker": {
+            "url": "https://cloud.docker.com/repository/docker/jpfeil/jfkm",
+            "version": "0.1.0",
+            "hash": "sha256:26350e02608115341fe8e735ef6d08216e71d962b176eb53b9a7bc54ef715c10" # NOQA
+        }
+    }
+    with open("{}/methods.json".format(dest), "w") as f:
+        f.write(json.dumps(methods, indent=4))
+    with cd("/mnt/outputs/jfkm"):
+        run("mv ../counts.jf .")
+    return True
+
+
+def _pizzly(base, output, methods, sample_id):
+    """
+    Run the Pizzly docker on a single sample and backhaul pizzly-fusion.final
+    Expects that expression Kallisto output is available in pwd/outputs/expression/Kallisto
+    """
+    methods["start"] = datetime.datetime.utcnow().isoformat()
+    with settings(warn_only=True):
+        result = run("cd /mnt && make pizzly")
+        if result.failed:
+            _log_error("{} Failed pizzly: {}".format(sample_id, result))
+            return False
+
+    # Update methods.json and copy pizzly-fusion.final file back
+    dest = "{}/pizzly-0.37.3-43efb2f".format(output)
+    local("mkdir -p {}".format(dest))
+    kallisto_dest = "{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9/Kallisto".format(
+        os.path.relpath(output, base))
+    methods["inputs"] = ["{}/abundance.h5".format(kallisto_dest),
+                         "{}/fusion.txt".format(kallisto_dest)]
+    methods["outputs"] = [
+        os.path.relpath(p, base) for p in get("/mnt/outputs/pizzly/pizzly-fusion.final", dest)]
+    methods["end"] = datetime.datetime.utcnow().isoformat()
+    methods["pipeline"] = {
+        "source": "https://github.com/UCSC-Treehouse/docker-pizzly",
+        "docker": {
+            "url": "https://hub.docker.com/r/ucsctreehouse/pizzly",
+            "version": "0.37.3",
+            "hash": "sha256:43efb2faf95f9d6bfd376ce6b943c9cf408fab5c73088023d633e56880ac1ea8" # NOQA
+        }
+    }
+    with open("{}/methods.json".format(dest), "w") as f:
+        f.write(json.dumps(methods, indent=4))
+    return True
+
+@parallel
+def one_docker(manifest="manifest.tsv", base=".", checksum_only="False"):
+    """
+        Run a single docker step for all ids listed in 'manifest.'
+        Doesn't do any setup or cleanup. This is for testing new dockers on existing output
+    """
+    with open(manifest) as f:
+        sample_ids = sorted([word.strip() for line in f.readlines() for word in line.split(',')
+                             if word.strip()])[env.hosts.index(env.host)::len(env.hosts)]
+
+    for sample_id in sample_ids:
+        print("{} Running one {}".format(env.host, sample_id))
+
+        # Intialize fake fastqs - this is only for printing to methods
+        # The inner docker finds fastqs via the Makefile
+        fastqs = [ "PLACEHOLDER-PATH/placeholder_R1.fastq.gz", "PLACEHOLDER-PATH/placeholder_R2.fastq.gz"]
+
+        # Initialize methods.json and output
+        methods = { "note" : "This is a test output file!" }
+        output = "{}/downstream/{}/secondary".format(base, sample_id)
+        local("mkdir -p {}".format(output))
+
+        # Run your docker here
+        _jfkm(base, output, methods, sample_id, fastqs)
 
 
 @parallel
@@ -385,10 +414,11 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
             run("rm *.tar.gz")
             run("mv *.sorted.bam sorted.bam")
 
-        # Temporarily move sorted.bam to parent dir so we don't download it
+        # Temporarily move sorted.bam and Kallisto/fusion.txt to parent dir so we don't download it
         # Still pretty hacky but prevents temporary exposure of sequence data to downstream dir
         with cd("/mnt/outputs/expression"):
             run("mv sorted.bam ..")
+            run("mv Kallisto/fusion.txt ..")
 
         # Update methods.json and copy output back
         dest = "{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9".format(output)
@@ -408,9 +438,11 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
         with open("{}/methods.json".format(dest), "w") as f:
             f.write(json.dumps(methods, indent=4))
 
-        # Move sorted.bam back to the expression dir so that QC can find it.
+        # Move sorted.bam back to the expression dir so that QC can find it;
+        # and Kallisto/fusion.txt for pizzly
         with cd("/mnt/outputs/expression"):
             run("mv ../sorted.bam .")
+            run("mv ../fusion.txt Kallisto")
 
         # Calculate qc (bam-umend-qc)
         methods["start"] = datetime.datetime.utcnow().isoformat()
@@ -453,6 +485,10 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
         with cd("/mnt/outputs/qc"):
             run("mv ../sortedByCoord.md.bam* .")
 
+        # Calculate pizzly from Kallisto results
+        if not _pizzly(base, output, methods, sample_id):
+            continue
+
         # Calculate fusion
         methods["start"] = datetime.datetime.utcnow().isoformat()
         with settings(warn_only=True):
@@ -479,31 +515,9 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
         with open("{}/methods.json".format(dest), "w") as f:
             f.write(json.dumps(methods, indent=4))
 
-        # Calculate jfkm
-        methods["start"] = datetime.datetime.utcnow().isoformat()
-        with settings(warn_only=True):
-            result = run("cd /mnt && make jfkm")
-            if result.failed:
-                _log_error("{} Failed jfkm: {}".format(sample_id, result))
-                continue
-
-        # Update methods.json and copy output back
-        dest = "{}/jpfeil-jfkm-0.1.0-26350e0".format(output)
-        local("mkdir -p {}".format(dest))
-        methods["inputs"] = fastqs
-        methods["outputs"] = [
-            os.path.relpath(p, base) for p in get("/mnt/outputs/jfkm/*", dest)]
-        methods["end"] = datetime.datetime.utcnow().isoformat()
-        methods["pipeline"] = {
-            "source": "https://github.com/UCSC-Treehouse/jfkm",
-            "docker": {
-                "url": "https://cloud.docker.com/repository/docker/jpfeil/jfkm",
-                "version": "0.1.0",
-                "hash": "sha256:26350e02608115341fe8e735ef6d08216e71d962b176eb53b9a7bc54ef715c10" # NOQA
-            }
-        }
-        with open("{}/methods.json".format(dest), "w") as f:
-            f.write(json.dumps(methods, indent=4))
+        # Calculate jfkm from fastq files
+        if not _jfkm(base, output, methods, sample_id, fastqs):
+            continue
 
         # Calculate variants
         methods["start"] = datetime.datetime.utcnow().isoformat()
