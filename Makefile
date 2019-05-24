@@ -103,6 +103,16 @@ jfkm:
                         --right-fq $(R2) \
                         --output-dir outputs
 
+pizzly:
+	echo "Running Pizzly 0.37.3 on Kallisto/fusion.txt from expression"
+	mkdir -p outputs/pizzly
+	docker run --rm \
+	    -v $(shell pwd)/outputs/expression/Kallisto:/Kallisto:ro \
+	    -v $(shell pwd)/outputs/pizzly:/data \
+	    ucsctreehouse/pizzly@sha256:43efb2faf95f9d6bfd376ce6b943c9cf408fab5c73088023d633e56880ac1ea8 \
+	        -f /Kallisto/fusion.txt \
+	        -a /Kallisto/abundance.h5
+
 verify:
 	echo "Verifying md5 of output of TEST file"
 	tar -xOzvf outputs/expression/TEST_R1merged.tar.gz TEST_R1merged/RSEM/rsem_genes.results | md5sum -c md5/expression.md5

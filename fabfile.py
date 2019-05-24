@@ -233,6 +233,62 @@ def _put_primary(sample_id, base):
     return []
 
 
+def pizzly(base, output, methods):
+    """
+    Run the Pizzly docker on a single sample and backhaul pizzly-fusion.final
+    Expects that expression Kallisto output is available in pwd/outputs/expression/Kallisto
+    """
+    methods["start"] = datetime.datetime.utcnow().isoformat()
+    with settings(warn_only=True):
+        result = run("cd /mnt && make pizzly")
+        if result.failed:
+            _log_error("{} Failed pizzly: {}".format(sample_id, result))
+            return False
+
+    # Update methods.json and copy pizzly-fusion.final file back
+    dest = "{}/pizzly-0.37.3-43efb2f".format(output)
+    local("mkdir -p {}".format(dest))
+    kallisto_dest = "{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9/Kallisto".format(
+        os.path.relpath(output, base))
+    methods["inputs"] = ["{}/abundance.h5".format(kallisto_dest),
+                         "{}/fusion.txt".format(kallisto_dest)]
+    methods["outputs"] = [
+        os.path.relpath(p, base) for p in get("/mnt/outputs/pizzly/pizzly-fusion.final", dest)]
+    methods["end"] = datetime.datetime.utcnow().isoformat()
+    methods["pipeline"] = {
+        "source": "https://github.com/UCSC-Treehouse/docker-pizzly",
+        "docker": {
+            "url": "https://hub.docker.com/r/ucsctreehouse/pizzly",
+            "version": "0.37.3",
+            "hash": "sha256:43efb2faf95f9d6bfd376ce6b943c9cf408fab5c73088023d633e56880ac1ea8" # NOQA
+        }
+    }
+    with open("{}/methods.json".format(dest), "w") as f:
+        f.write(json.dumps(methods, indent=4))
+    return True
+
+@parallel
+def one_docker(manifest="manifest.tsv", base=".", checksum_only="False"):
+    """
+        Run a single docker step for all ids listed in 'manifest.'
+        Doesn't do any setup or cleanup. This is for testing new dockers on existing output
+    """
+    with open(manifest) as f:
+        sample_ids = sorted([word.strip() for line in f.readlines() for word in line.split(',')
+                             if word.strip()])[env.hosts.index(env.host)::len(env.hosts)]
+
+    for sample_id in sample_ids:
+        print("{} Running one {}".format(env.host, sample_id))
+
+        # Initialize methods.json and output
+        methods = { "note" : "This is a test output file!" }
+        output = "{}/downstream/{}/secondary".format(base, sample_id)
+        local("mkdir -p {}".format(output))
+
+        # Run your docker here
+        pizzly(base, output, methods)
+
+
 @parallel
 def process(manifest="manifest.tsv", base=".", checksum_only="False"):
     """ Process all ids listed in 'manifest' """
@@ -321,10 +377,11 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
             run("rm *.tar.gz")
             run("mv *.sorted.bam sorted.bam")
 
-        # Temporarily move sorted.bam to parent dir so we don't download it
+        # Temporarily move sorted.bam and Kallisto/fusion.txt to parent dir so we don't download it
         # Still pretty hacky but prevents temporary exposure of sequence data to downstream dir
         with cd("/mnt/outputs/expression"):
             run("mv sorted.bam ..")
+            run("mv Kallisto/fusion.txt ..")
 
         # Update methods.json and copy output back
         dest = "{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9".format(output)
@@ -344,9 +401,11 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
         with open("{}/methods.json".format(dest), "w") as f:
             f.write(json.dumps(methods, indent=4))
 
-        # Move sorted.bam back to the expression dir so that QC can find it.
+        # Move sorted.bam back to the expression dir so that QC can find it;
+        # and Kallisto/fusion.txt for pizzly
         with cd("/mnt/outputs/expression"):
             run("mv ../sorted.bam .")
+            run("mv ../fusion.txt Kallisto")
 
         # Calculate qc (bam-umend-qc)
         methods["start"] = datetime.datetime.utcnow().isoformat()
@@ -388,6 +447,10 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
         # And move the QC bam back so it's available to the variant caller
         with cd("/mnt/outputs/qc"):
             run("mv ../sortedByCoord.md.bam* .")
+
+        # Calculate pizzly from Kallisto results
+        if not pizzly(base, output, methods):
+            continue
 
         # Calculate fusion
         methods["start"] = datetime.datetime.utcnow().isoformat()
