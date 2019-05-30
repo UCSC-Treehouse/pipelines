@@ -377,6 +377,64 @@ def one_docker(manifest="manifest.tsv", base=".", checksum_only="False"):
 
 
 @parallel
+def fusion(manifest="manifest.tsv", base="."):
+    """ Set up the fastq files and run the fusion step only for all IDs listed in manifest"""
+
+    # Copy Makefile in case we changed it while developing...
+    put("{}/Makefile".format(os.path.dirname(env.real_fabfile)), "/mnt")
+
+    # Read ids and pick every #hosts to allocate round robin to each machine
+    with open(manifest) as f:
+        sample_ids = sorted([word.strip() for line in f.readlines() for word in line.split(',')
+                             if word.strip()])[env.hosts.index(env.host)::len(env.hosts)]
+
+    for sample_id in sample_ids:
+
+        # Set up the sample fastqs and output dir
+        setup_ok, methods, fastqs, output = _setup(sample_id, base)
+        if not setup_ok:
+            continue
+
+        # And run fusion only.
+        if not _fusions(base, output, methods, sample_id, fastqs):
+            continue
+
+
+def _setup(sample_id, base):
+    """ Preprocessing step for a single sample. Upload fastqs, setup methods dict,
+        create output dir.
+        Returns success status, base methods dict, fastqs, output."""
+    print("{} processing {}".format(env.host, sample_id))
+
+    # Reset machine clearing all output, samples, and killing dockers
+    reset()
+
+    run("mkdir -p /mnt/samples")
+
+    # Put secondary input files from primary storage
+    fastqs = _put_primary(sample_id, base)
+    print("Original fastq paths", fastqs)
+    fastqs = [os.path.relpath(fastq, base) for fastq in fastqs]
+    print("Relative fastq paths", fastqs)
+
+    if not fastqs:
+        _log_error("Unable find any fastqs or bams associated with {}".format(sample_id))
+        return (False, False, False, False)
+
+    # Create downstream output parent
+    output = "{}/downstream/{}/secondary".format(base, sample_id)
+    local("mkdir -p {}".format(output))
+
+    # Initialize methods.json
+    methods = {"user": os.environ["USER"],
+               "treeshop_version": local(
+                  "git --work-tree={0} --git-dir {0}/.git describe --always".format(
+                      os.path.dirname(__file__)), capture=True),
+               "sample_id": sample_id}
+
+    return (True, methods, fastqs, output)
+
+@parallel
 def process(manifest="manifest.tsv", base=".", checksum_only="False"):
     """ Process all ids listed in 'manifest' """
 
@@ -389,33 +447,13 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
                              if word.strip()])[env.hosts.index(env.host)::len(env.hosts)]
 
     for sample_id in sample_ids:
-        print("{} processing {}".format(env.host, sample_id))
 
-        # Reset machine clearing all output, samples, and killing dockers
-        reset()
-
-        run("mkdir -p /mnt/samples")
-
-        # Put secondary input files from primary storage
-        fastqs = _put_primary(sample_id, base)
-        print("Original fastq paths", fastqs)
-        fastqs = [os.path.relpath(fastq, base) for fastq in fastqs]
-        print("Relative fastq paths", fastqs)
-
-        if not fastqs:
-            _log_error("Unable find any fastqs or bams associated with {}".format(sample_id))
+        # Set up the sample fastqs and output dir
+        setup_ok, methods, fastqs, output = _setup(sample_id, base)
+        if not setup_ok:
             continue
 
-        # Create downstream output parent
-        output = "{}/downstream/{}/secondary".format(base, sample_id)
-        local("mkdir -p {}".format(output))
-
-        # Initialize methods.json
-        methods = {"user": os.environ["USER"],
-                   "treeshop_version": local(
-                      "git --work-tree={0} --git-dir {0}/.git describe --always".format(
-                          os.path.dirname(__file__)), capture=True),
-                   "sample_id": sample_id}
+        # Begin running pipelines
 
         # Calculate checksums
         methods["start"] = datetime.datetime.utcnow().isoformat()
@@ -453,10 +491,6 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
             if result.failed:
                 _log_error("{} Failed expression: {}".format(sample_id, result))
                 continue
-
-        # Create output parent - wait till now in case first pipeline halted
-        output = "{}/downstream/{}/secondary".format(base, sample_id)
-        local("mkdir -p {}".format(output))
 
         # Unpack outputs and normalize names so we don't have sample id in them
         with cd("/mnt/outputs/expression"):
