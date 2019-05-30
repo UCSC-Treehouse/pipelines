@@ -8,7 +8,7 @@ R2 = $(shell find samples -iregex ".+2[^0-9]*$$" | head -1)
 
 REF_BASE ?= "http://hgdownload.soe.ucsc.edu/treehouse/reference"
 
-all: reference expression qc fusions variants verify
+all: reference expression qc fusions variants jfkm pizzly verify
 
 reference:
 	echo "Downloading reference files from $(REF_BASE)..."
@@ -89,6 +89,29 @@ variants:
 			/references/GCA_000001405.15_GRCh38_no_alt_analysis_set.fa \
 			/inputs/sample.bam \
 			/outputs
+
+jfkm:
+	echo "Running Jellyfish - Km pipeline on $(R1) and $(R2)"
+	mkdir -p outputs/jfkm
+	docker run --rm \
+	       -v $(shell pwd)/samples:/data/samples \
+	       -v $(shell pwd)/outputs/jfkm:/data/outputs \
+               jpfeil/jfkm:0.1.0 \
+                        --CPU `nproc` \
+                        --FLT3-ITD \
+                        --left-fq $(R1) \
+                        --right-fq $(R2) \
+                        --output-dir outputs
+
+pizzly:
+	echo "Running Pizzly 0.37.3 on Kallisto/fusion.txt from expression"
+	mkdir -p outputs/pizzly
+	docker run --rm \
+	    -v $(shell pwd)/outputs/expression/Kallisto:/Kallisto:ro \
+	    -v $(shell pwd)/outputs/pizzly:/data \
+	    ucsctreehouse/pizzly@sha256:43efb2faf95f9d6bfd376ce6b943c9cf408fab5c73088023d633e56880ac1ea8 \
+	        -f /Kallisto/fusion.txt \
+	        -a /Kallisto/abundance.h5
 
 verify:
 	echo "Verifying md5 of output of TEST file"
