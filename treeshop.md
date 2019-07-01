@@ -117,14 +117,22 @@ After this you should have the following under downstream:
 	treeshop/downstream/
 	└── TEST
       └── secondary
+          ├── jpfeil-jfkm-0.1.0-26350e0
+          │   ├── counts.jf
+          │   ├── FLT3-ITD.mut
+          │   ├── FLT3-ITD.report
+          │   ├── jfkm.log
+          │   └── methods.json
           ├── md5sum-3.7.0-ccba511
           │   ├── md5
           │   └── methods.json
+          ├── pizzly-0.37.3-43efb2f
+          │   ├── methods.json
+          │   └── pizzly-fusion.final
           ├── ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9
           │   ├── Kallisto
           │   │   ├── abundance.h5
           │   │   ├── abundance.tsv
-          │   │   ├── fusion.txt
           │   │   └── run_info.json
           │   ├── methods.json
           │   ├── QC
