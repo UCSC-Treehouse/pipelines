@@ -58,7 +58,7 @@ checksums:
 			/bin/sh -c "md5sum * > /data/outputs/checksums/md5"
 
 expression:
-	echo "Running expression and qc pipeline 3.3.4-1.12.3 on $(R1) and $(R2)"
+	echo "Running expression pipeline 3.3.4-1.12.3 on $(R1) and $(R2)"
 	mkdir -p outputs/expression
 	docker run --rm \
 		-v $(shell pwd)/outputs/expression:$(shell pwd)/outputs/expression \
