@@ -80,8 +80,11 @@ def up(count=1):
         hostname = "{}-treeshop-{:%Y%m%d-%H%M%S}".format(
             os.environ["USER"], datetime.datetime.now())
         # Create a new keypair per machine due to https://github.com/docker/machine/issues/3261
+        # Custom engine-install-url to install an older version; otherwise, it tries to install package docker-compose-plugin
+        # which causes a crash
         local("""
               docker-machine create --driver openstack \
+              --engine-install-url https://raw.githubusercontent.com/docker/docker-install/e5f4d99c754ad5da3fc6e060f989bb508b26ebbd/install.sh \
               --openstack-tenant-id 41e142e18a07427caf61ed29652c8c08 \
               --openstack-auth-url http://controller:5000/v3/ \
               --openstack-domain-id default \
@@ -92,7 +95,6 @@ def up(count=1):
               --openstack-flavor-name m1.large \
               {}
               """.format(hostname))
-
         # Copy over single key due to https://github.com/UCSC-Treehouse/pipelines/issues/5
         local("cat ~/.ssh/id_rsa.pub" +
               "| docker-machine ssh {} 'cat >> ~/.ssh/authorized_keys'".format(hostname))
@@ -100,6 +102,13 @@ def up(count=1):
     # In case additional commands are called after up
     _find_machines()
 
+@runs_once
+def unlock():
+    """Copy your SSH key to all machines"""
+    for hostname in env.hostnames:
+        print("Copying SSH key to {}".format(hostname))
+        local("cat ~/.ssh/id_rsa.pub" +
+              "| docker-machine ssh {} 'cat >> ~/.ssh/authorized_keys'".format(hostname))
 
 @runs_once
 def down():
@@ -122,6 +131,27 @@ def top():
     """ Get list of docker containers """
     run("docker ps")
 
+
+
+@parallel
+def installdocker():
+    """ Install docker on a system with no previous installation"""
+    # Use this if "fab up" crashed and docker-machine cannot detect docker.
+    # Otherwise, use configure.
+
+    # Set up docker group
+    sudo("groupadd docker")
+    sudo("gpasswd -a ubuntu docker")
+    sudo("apt-get -qy install make")
+
+    # Install toil's preferred docker
+    run("wget https://packages.docker.com/1.12/apt/repo/pool/main/d/docker-engine/docker-engine_1.12.6~cs8-0~ubuntu-xenial_amd64.deb")  # NOQA
+    sudo("apt-get -y install libltdl7")
+    sudo("dpkg -i docker-engine_1.12.6~cs8-0~ubuntu-xenial_amd64.deb")
+    sudo("service docker start")
+
+    # Upload the Makefile
+    put("{}/Makefile".format(os.path.dirname(env.real_fabfile)), "/mnt")
 
 @parallel
 def configure():
