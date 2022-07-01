@@ -88,3 +88,6 @@ For specific parameters and versions used in this pipeline, see [the Pipelines V
 
 ## Treehouse Internal Use
 See [the Treeshop document](treeshop.md) for running on VMs via docker-machine and fabric.
+
+## Security Note:
+This pipeline runs a docker of the [mend_qc tool](https://github.com/UCSC-Treehouse/mend_qc) which has a [vulnerability in the numpy version used (1.13.3)](https://github.com/advisories/GHSA-5545-2q6w-2gh6). However this is [not expected to be a problem](https://github.com/numpy/numpy/issues/19038) in the context of the mend_qc docker.
