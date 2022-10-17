@@ -185,6 +185,13 @@ def reference():
     with cd("/mnt"):
         run("make reference")
 
+@parallel
+def reference_ercc():
+    """ Configure each machine with reference files - ERCC version. """
+    put("{}/md5".format(os.path.dirname(env.real_fabfile)), "/mnt")
+    with cd("/mnt"):
+        run("make reference_ercc")
+
 
 def reset():
     """ Stop any existing processing and delete inputs and outputs """

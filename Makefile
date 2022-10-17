@@ -27,6 +27,26 @@ reference:
 		tar -zxsvf references/STARFusion-GRCh38gencode23.tar.gz -C references --skip-old-files; \
 	fi
 
+
+reference_ercc:
+	echo "Downloading reference files including ERCC transcripts from $(REF_BASE)..."
+	mkdir -p references
+	wget -N -P references $(REF_BASE)/GRCh38_gencode23_ERCC92_transcripts.idx
+	wget -N -P references $(REF_BASE)/starindex_GRCh38_gencode23_ERCC92.tar.gz
+	wget -N -P references $(REF_BASE)/rsem_ref_GRCh38_gencode23_ERCC92.tar.gz
+	wget -N -P references $(REF_BASE)/hg38_GENCODE_v23_ERCC92.reseqc.bed
+	wget -N -P references $(REF_BASE)/STARFusion-GRCh38gencode23.tar.gz
+	wget -N -P references $(REF_BASE)/GCA_000001405.15_GRCh38_no_alt_analysis_set.dict
+	wget -N -P references $(REF_BASE)/GCA_000001405.15_GRCh38_no_alt_analysis_set.fa
+	wget -N -P references $(REF_BASE)/GCA_000001405.15_GRCh38_no_alt_analysis_set.fa.fai
+	echo "Verifying reference files..."
+	md5sum -c md5/references_ercc.md5
+	if [ ! -d "references/STARFusion-GRCh38gencode23" ]; then \
+		echo "Unpacking fusion reference files..."; \
+		tar -zxsvf references/STARFusion-GRCh38gencode23.tar.gz -C references --skip-old-files; \
+	fi
+
+
 checksums:
 	echo "Calculating md5 of input sample files"
 	mkdir -p outputs/checksums
