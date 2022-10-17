@@ -252,3 +252,19 @@ To run the fusion pipeline only, run `fab fusion` instead of `fab process` after
 Users seeking more information on using multiple fabfiles or using different options should visit the Fabric website. [Fabric options](http://docs.fabfile.org/en/1.14/usage/fab.html).
 
 For more information on selectively shutting down docker-machines review the docker-machine documentation.  [docker-machine](https://docs.docker.com/machine/reference/rm/).
+
+## Troubleshooting
+
+### Fatal error: Needed to prompt...
+
+Do you see this error when you run a `fab` command like `fab top` :
+```
+Fatal error: Needed to prompt for the target host connection string (host: ), but input would be ambiguous in parallel mode
+```
+
+One possible cause: Do you have a machine that docker-machine still remembers, but the actual OpenStack VM is no longer around?
+You can check with `docker-machine ls`. It will give you a list of OpenStacks.
+Are any of them unexpected or old or something you thought you shut down? Especially if their state is "Error".
+Getting rid of this machine from the docker-machine list might help.
+You can do this by copying its name (eg YOURNAME-treeshop-DATE) and running:
+`docker-machine rm -f YOURNAME-treeshop-DATE`).
