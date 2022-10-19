@@ -100,6 +100,16 @@ qc:
 		ucsctreehouse/bam-umend-qc@sha256:5f286d72395fcc5085a96d463ae3511554acfa4951aef7d691bba2181596c31f \
 			/inputs/sample.bam /outputs
 
+qc_ercc:
+	echo "Running bam-mend-qc v2.0.2 pipeline, with ERCC transcripts, on sorted bam from expression"
+	mkdir -p outputs/qc
+	docker run --rm \
+	  -v `pwd`/$(shell find outputs/expression/*.bam):/inputs/sample.bam \
+		-v $(shell pwd)/outputs/qc:/tmp \
+		-v $(shell pwd)/outputs/qc:/outputs \
+		ucsctreehouse/bam-mend-qc@sha256:1c3c62731eb7e6bbfcba4600807022e250a9ee5874477d115939a5d33f39e39f \
+			/inputs/sample.bam /outputs hg38_GENCODE_v23_ERCC92.reseqc.bed
+
 fusions:
 	echo "Running fusion 0.1.0 pipeline on $(R1) and $(R2)"
 	mkdir -p outputs/fusions

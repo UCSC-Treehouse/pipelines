@@ -574,7 +574,10 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False", ercc="Fals
         # Calculate qc (bam-umend-qc)
         methods["start"] = datetime.datetime.utcnow().isoformat()
         with settings(warn_only=True):
-            result = run("cd /mnt && make qc")
+            if ercc:
+                result = run("cd /mnt && make qc_ercc")
+            else:
+                result = run("cd /mnt && make qc")
             if result.failed:
                 _log_error("{} Failed qc: {}".format(sample_id, result))
                 continue
@@ -588,23 +591,51 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False", ercc="Fals
             run("mv sortedByCoord.md.bam* ..")
 
         # Update methods.json and copy output back
-        dest = "{}/ucsctreehouse-bam-umend-qc-1.1.1-5f286d7".format(output)
-        local("mkdir -p {}".format(dest))
-        methods["inputs"] = ["{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9/sorted.bam".format(
+        if ercc:
+            dest = "{}/ucsctreehouse-bam-mend-qc-v2.0.2-1c3c627".format(output)
+            local("mkdir -p {}".format(dest))
+            methods["inputs"] = ["{}/ucsc_cgl-rnaseq-cgl-pipeline-ERCC-3.3.4-785eee9/sorted.bam".format(
                 os.path.relpath(output, base))]
+        else:
+            dest = "{}/ucsctreehouse-bam-umend-qc-1.1.1-5f286d7".format(output)
+            local("mkdir -p {}".format(dest))
+            methods["inputs"] = ["{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9/sorted.bam".format(
+                    os.path.relpath(output, base))]
+
         methods["outputs"] = [
             os.path.relpath(p, base) for p in get("/mnt/outputs/qc/*", dest)]
-        methods["outputs"] += [ 
-            os.path.relpath(p, base) for p in get("/mnt/outputs/sortedByCoord.md.bam*", bamdest)]
+
+        # Download the bams to primary/derived. Hardlink ERCC bams to sortedByCoord.md.ERCC.bam before
+        # downloading those ERCC bams only so that they don't clobber any pre-existing non-ERCC bams.
+        if ercc:
+            with cd("/mnt/outputs"):
+                run("ln -v sortedByCoord.md.bam sortedByCoord.md.ERCC.bam")
+                run("ln -v sortedByCoord.md.bam.bai sortedByCoord.md.ERCC.bam.bai")
+            methods["outputs"] += [
+                os.path.relpath(p, base) for p in get("/mnt/outputs/sortedByCoord.md.ERCC.bam*", bamdest)]
+         else:
+            methods["outputs"] += [
+                os.path.relpath(p, base) for p in get("/mnt/outputs/sortedByCoord.md.bam*", bamdest)]
+
         methods["end"] = datetime.datetime.utcnow().isoformat()
-        methods["pipeline"] = {
-            "source": "https://github.com/UCSC-Treehouse/bam-umend-qc",
-            "docker": {
-                "url": "https://hub.docker.com/r/ucsctreehouse/bam-umend-qc",
-                "version": "1.1.1",
-                "hash": "sha256:5f286d72395fcc5085a96d463ae3511554acfa4951aef7d691bba2181596c31f" # NOQA
+        if ercc:
+            methods["pipeline"] = {
+                "source": "https://github.com/UCSC-Treehouse/mend_qc/releases/tag/v2.0.2",
+                "docker": {
+                    "url": "https://hub.docker.com/r/ucsctreehouse/bam-mend-qc/",
+                    "version": "v2.0.2",
+                    "hash": "sha256:1c3c62731eb7e6bbfcba4600807022e250a9ee5874477d115939a5d33f39e39f" # NOQA
+                }
             }
-        }
+        else:
+            methods["pipeline"] = {
+                "source": "https://github.com/UCSC-Treehouse/bam-umend-qc",
+                "docker": {
+                    "url": "https://hub.docker.com/r/ucsctreehouse/bam-umend-qc",
+                    "version": "1.1.1",
+                    "hash": "sha256:5f286d72395fcc5085a96d463ae3511554acfa4951aef7d691bba2181596c31f" # NOQA
+                }
+            }
         with open("{}/methods.json".format(dest), "w") as f:
             f.write(json.dumps(methods, indent=4))
 
