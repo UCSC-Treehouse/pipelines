@@ -472,7 +472,7 @@ def _setup(sample_id, base):
     return (True, methods, fastqs, output)
 
 @parallel
-def process(manifest="manifest.tsv", base=".", checksum_only="False"):
+def process(manifest="manifest.tsv", base=".", checksum_only="False", ercc="False"):
     """ Process all ids listed in 'manifest' """
 
     # Copy Makefile in case we changed it while developing...
@@ -524,7 +524,10 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
         # Calculate expression
         methods["start"] = datetime.datetime.utcnow().isoformat()
         with settings(warn_only=True):
-            result = run("cd /mnt && make expression")
+            if ercc:
+                result = run("cd /mnt && make expression_ercc")
+            else:
+                result = run("cd /mnt && make expression")
             if result.failed:
                 _log_error("{} Failed expression: {}".format(sample_id, result))
                 continue
@@ -542,7 +545,10 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False"):
             run("mv Kallisto/fusion.txt ..")
 
         # Update methods.json and copy output back
-        dest = "{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9".format(output)
+        if ercc:
+            dest = "{}/ucsc_cgl-rnaseq-cgl-pipeline-ERCC-3.3.4-785eee9".format(output)
+        else:
+            dest = "{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9".format(output)
         local("mkdir -p {}".format(dest))
         methods["inputs"] = fastqs
         methods["outputs"] = [

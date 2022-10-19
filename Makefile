@@ -74,6 +74,22 @@ expression:
 			--work_mount $(shell pwd)/outputs/expression \
 			--sample-paired $(R1),$(R2)
 
+expression_ercc:
+	echo "Running expression pipeline 3.3.4-1.12.3, with ERCC transcripts, debug output suppressed, on $(R1) and $(R2)"
+	mkdir -p outputs/expression
+	docker run --rm \
+		-v $(shell pwd)/outputs/expression:$(shell pwd)/outputs/expression \
+		-v $(shell pwd)/samples:/samples \
+		-v $(shell pwd)/references:/references \
+		-v /var/run/docker.sock:/var/run/docker.sock \
+		quay.io/ucsc_cgl/rnaseq-cgl-pipeline@sha256:785eee9f750ab91078d84d1ee779b6f74717eafc09e49da817af6b87619b0756 \
+			--save-bam \
+			--star /references/starindex_GRCh38_gencode23_ERCC92.tar.gz \
+			--rsem /references/rsem_ref_GRCh38_gencode23_ERCC92.tar.gz \
+			--kallisto /references/GRCh38_gencode23_ERCC92_transcripts.idx \
+			--work_mount $(shell pwd)/outputs/expression \
+			--sample-paired $(R1),$(R2) \
+		grep -v "DEBUG toil"
 qc:
 	echo "Running bam-umend-qc 1.1.1 pipeline on sorted bam from expression"
 	mkdir -p outputs/qc
