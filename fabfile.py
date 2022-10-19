@@ -353,7 +353,7 @@ def _jfkm(base, output, methods, sample_id, fastqs):
     return True
 
 
-def _pizzly(base, output, methods, sample_id):
+def _pizzly(base, output, methods, sample_id, ercc=False):
     """
     Run the Pizzly docker on a single sample and backhaul pizzly-fusion.final
     Expects that expression Kallisto output is available in pwd/outputs/expression/Kallisto
@@ -483,6 +483,13 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False", ercc="Fals
         sample_ids = sorted([word.strip() for line in f.readlines() for word in line.split(',')
                              if word.strip()])[env.hosts.index(env.host)::len(env.hosts)]
 
+
+    # Set up ercc as a boolean for convenience!
+    if ercc == "True":
+        do_ercc = True
+    else:
+       do_ercc = False
+
     for sample_id in sample_ids:
 
         # Set up the sample fastqs and output dir
@@ -524,7 +531,7 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False", ercc="Fals
         # Calculate expression
         methods["start"] = datetime.datetime.utcnow().isoformat()
         with settings(warn_only=True):
-            if ercc:
+            if do_ercc:
                 result = run("cd /mnt && make expression_ercc")
             else:
                 result = run("cd /mnt && make expression")
@@ -545,7 +552,7 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False", ercc="Fals
             run("mv Kallisto/fusion.txt ..")
 
         # Update methods.json and copy output back
-        if ercc:
+        if do_ercc:
             dest = "{}/ucsc_cgl-rnaseq-cgl-pipeline-ERCC-3.3.4-785eee9".format(output)
         else:
             dest = "{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9".format(output)
@@ -574,7 +581,7 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False", ercc="Fals
         # Calculate qc (bam-umend-qc)
         methods["start"] = datetime.datetime.utcnow().isoformat()
         with settings(warn_only=True):
-            if ercc:
+            if do_ercc:
                 result = run("cd /mnt && make qc_ercc")
             else:
                 result = run("cd /mnt && make qc")
@@ -591,7 +598,7 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False", ercc="Fals
             run("mv sortedByCoord.md.bam* ..")
 
         # Update methods.json and copy output back
-        if ercc:
+        if do_ercc:
             dest = "{}/ucsctreehouse-bam-mend-qc-v2.0.2-1c3c627".format(output)
             local("mkdir -p {}".format(dest))
             methods["inputs"] = ["{}/ucsc_cgl-rnaseq-cgl-pipeline-ERCC-3.3.4-785eee9/sorted.bam".format(
@@ -607,7 +614,7 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False", ercc="Fals
 
         # Download the bams to primary/derived. Hardlink ERCC bams to sortedByCoord.md.ERCC.bam before
         # downloading those ERCC bams only so that they don't clobber any pre-existing non-ERCC bams.
-        if ercc:
+        if do_ercc:
             with cd("/mnt/outputs"):
                 run("ln -v sortedByCoord.md.bam sortedByCoord.md.ERCC.bam")
                 run("ln -v sortedByCoord.md.bam.bai sortedByCoord.md.ERCC.bam.bai")
@@ -618,7 +625,7 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False", ercc="Fals
                 os.path.relpath(p, base) for p in get("/mnt/outputs/sortedByCoord.md.bam*", bamdest)]
 
         methods["end"] = datetime.datetime.utcnow().isoformat()
-        if ercc:
+        if do_ercc:
             methods["pipeline"] = {
                 "source": "https://github.com/UCSC-Treehouse/mend_qc/releases/tag/v2.0.2",
                 "docker": {
@@ -644,7 +651,7 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False", ercc="Fals
             run("mv ../sortedByCoord.md.bam* .")
 
         # Calculate pizzly from Kallisto results
-        if not _pizzly(base, output, methods, sample_id):
+        if not _pizzly(base, output, methods, sample_id, ercc=do_ercc):
             continue
 
         # Calculate fusion
