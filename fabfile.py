@@ -644,7 +644,7 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False", ercc="Fals
                 run("ln -v sortedByCoord.md.bam.bai sortedByCoord.md.ERCC.bam.bai")
             methods["outputs"] += [
                 os.path.relpath(p, base) for p in get("/mnt/outputs/sortedByCoord.md.ERCC.bam*", bamdest)]
-         else:
+        else:
             methods["outputs"] += [
                 os.path.relpath(p, base) for p in get("/mnt/outputs/sortedByCoord.md.bam*", bamdest)]
 
