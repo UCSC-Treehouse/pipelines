@@ -88,8 +88,7 @@ expression_ercc:
 			--rsem /references/rsem_ref_GRCh38_gencode23_ERCC92.tar.gz \
 			--kallisto /references/GRCh38_gencode23_ERCC92_transcripts.idx \
 			--work_mount $(shell pwd)/outputs/expression \
-			--sample-paired $(R1),$(R2) \
-		grep -v "DEBUG toil"
+			--sample-paired $(R1),$(R2)
 qc:
 	echo "Running bam-umend-qc 1.1.1 pipeline on sorted bam from expression"
 	mkdir -p outputs/qc
