@@ -270,7 +270,7 @@ def _put_primary(sample_id, base):
     return []
 
 
-def _fusions(base, output, methods, sample_id, fastqs):
+def _fusions(base, output, methods, sample_id, fastqs, ercc=False):
     """Calculate fusion from fastq files"""
     methods["start"] = datetime.datetime.utcnow().isoformat()
     with settings(warn_only=True):
@@ -288,18 +288,30 @@ def _fusions(base, output, methods, sample_id, fastqs):
         bamdest = False
         print("Can't move FusionInspector bam files for {}; assume not generated.".format(sample_id))
     else:
+        # make ERCC-named hardlinks of the bams if ercc but leave them in the same bamdest.
+        if ercc:
+            with cd("/mnt/outputs"):
+                run("ln -v FusionInspector.junction_reads.bam FusionInspector.ERCC.junction_reads.bam")
+                run("ln -v FusionInspector.spanning_reads.bam FusionInspector.ERCC.spanning_reads.bam")
         bamdest = "{}/primary/derived/{}".format(base, sample_id)
         local("mkdir -p {}".format(bamdest))
 
     # Update methods.json and copy output back, including bams to bamdest if present
-    dest = "{}/ucsctreehouse-fusion-0.1.0-3faac56".format(output)
+    if ercc:
+        dest = "{}/ucsctreehouse-fusion-ERCC-0.1.0-3faac56".format(output)
+    else:
+        dest = "{}/ucsctreehouse-fusion-0.1.0-3faac56".format(output)
     local("mkdir -p {}".format(dest))
     methods["inputs"] = fastqs
     methods["outputs"] = [
         os.path.relpath(p, base) for p in get("/mnt/outputs/fusions/*", dest)]
     if bamdest:
-        methods["outputs"] += [
-            os.path.relpath(p, base) for p in get("/mnt/outputs/FusionInspector.*_reads.bam", bamdest)]
+        if ercc: # Only copy over the ercc-named versions
+            methods["outputs"] += [
+                os.path.relpath(p, base) for p in get("/mnt/outputs/FusionInspector.ERCC.*_reads.bam", bamdest)]
+        else:
+            methods["outputs"] += [
+                os.path.relpath(p, base) for p in get("/mnt/outputs/FusionInspector.*_reads.bam", bamdest)]
     methods["end"] = datetime.datetime.utcnow().isoformat()
     methods["pipeline"] = {
         "source": "https://github.com/UCSC-Treehouse/fusion",
@@ -313,6 +325,7 @@ def _fusions(base, output, methods, sample_id, fastqs):
         f.write(json.dumps(methods, indent=4))
 
     # And move the FusionInspector files back to fusions dir.
+    # (this will include ERCC versions if present.)
     if bamdest:
         with cd("/mnt/outputs/fusions"):
             run("mv -v ../FusionInspector.*_reads.bam .")
@@ -320,8 +333,9 @@ def _fusions(base, output, methods, sample_id, fastqs):
     return True
 
 
-def _jfkm(base, output, methods, sample_id, fastqs):
+def _jfkm(base, output, methods, sample_id, fastqs, ercc=False):
     """Calculate jfkm"""
+    # ERCC - folder name change but nothing else
     methods["start"] = datetime.datetime.utcnow().isoformat()
     with settings(warn_only=True):
         result = run("cd /mnt && make jfkm")
@@ -332,7 +346,10 @@ def _jfkm(base, output, methods, sample_id, fastqs):
     # Update methods.json and copy output back, omitting counts.jf by moving it temporarily
     with cd("/mnt/outputs/jfkm"):
         run("mv counts.jf ..")
-    dest = "{}/jpfeil-jfkm-0.1.0-26350e0".format(output)
+    if ercc:
+        dest = "{}/jpfeil-jfkm-ERCC-0.1.0-26350e0".format(output)
+    else:
+        dest = "{}/jpfeil-jfkm-0.1.0-26350e0".format(output)
     local("mkdir -p {}".format(dest))
     methods["inputs"] = fastqs
     methods["outputs"] = [
@@ -366,10 +383,17 @@ def _pizzly(base, output, methods, sample_id, ercc=False):
             return False
 
     # Update methods.json and copy pizzly-fusion.final file back
-    dest = "{}/pizzly-0.37.3-43efb2f".format(output)
+    if do_ercc:
+        dest = "{}/pizzly-ERCC-0.37.3-43efb2f".format(output)
+    else:
+        dest = "{}/pizzly-0.37.3-43efb2f".format(output)
     local("mkdir -p {}".format(dest))
-    kallisto_dest = "{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9/Kallisto".format(
-        os.path.relpath(output, base))
+    if ercc:
+        kallisto_dest = "{}/ucsc_cgl-rnaseq-cgl-pipeline-ERCC-3.3.4-785eee9/Kallisto".format(
+            os.path.relpath(output, base))
+    else:
+        kallisto_dest = "{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9/Kallisto".format(
+            os.path.relpath(output, base))
     methods["inputs"] = ["{}/abundance.h5".format(kallisto_dest),
                          "{}/fusion.txt".format(kallisto_dest)]
     methods["outputs"] = [
@@ -612,7 +636,7 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False", ercc="Fals
         methods["outputs"] = [
             os.path.relpath(p, base) for p in get("/mnt/outputs/qc/*", dest)]
 
-        # Download the bams to primary/derived. Hardlink ERCC bams to sortedByCoord.md.ERCC.bam before
+        # Download the bams to primary/derived. hardlink ERCC bams to sortedByCoord.md.ERCC.bam before
         # downloading those ERCC bams only so that they don't clobber any pre-existing non-ERCC bams.
         if do_ercc:
             with cd("/mnt/outputs"):
@@ -647,6 +671,7 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False", ercc="Fals
             f.write(json.dumps(methods, indent=4))
 
         # And move the QC bam back so it's available to the variant caller
+        # (Don't move any ERCC-labeled copies back)
         with cd("/mnt/outputs/qc"):
             run("mv ../sortedByCoord.md.bam* .")
 
@@ -655,11 +680,11 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False", ercc="Fals
             continue
 
         # Calculate fusion
-        if not _fusions(base, output, methods, sample_id, fastqs):
+        if not _fusions(base, output, methods, sample_id, fastqs, ercc=do_ercc):
             continue
 
         # Calculate jfkm from fastq files
-        if not _jfkm(base, output, methods, sample_id, fastqs):
+        if not _jfkm(base, output, methods, sample_id, fastqs, ercc=do_ercc):
             continue
 
         # Calculate variants
@@ -671,9 +696,14 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False", ercc="Fals
                 continue
 
         # Update methods.json and copy output back
-        dest = "{}/ucsctreehouse-mini-var-call-0.0.1-1976429".format(output)
+        if do_ercc:
+            dest = "{}/ucsctreehouse-mini-var-call-ERCC-0.0.1-1976429".format(output)
+            methods["inputs"] = ["{}/sortedByCoord.md.ERCC.bam".format(bamdest)]
+        else:
+            dest = "{}/ucsctreehouse-mini-var-call-0.0.1-1976429".format(output)
+            methods["inputs"] = ["{}/sortedByCoord.md.bam".format(bamdest)]
+
         local("mkdir -p {}".format(dest))
-        methods["inputs"] = ["{}/sortedByCoord.md.bam".format(bamdest)]
         methods["outputs"] = [
             os.path.relpath(p, base) for p in get("/mnt/outputs/variants/*", dest)]
         methods["end"] = datetime.datetime.utcnow().isoformat()
