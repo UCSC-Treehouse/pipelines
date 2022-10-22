@@ -288,11 +288,11 @@ def _fusions(base, output, methods, sample_id, fastqs, ercc=False):
         bamdest = False
         print("Can't move FusionInspector bam files for {}; assume not generated.".format(sample_id))
     else:
-        # make ERCC-named hardlinks of the bams if ercc but leave them in the same bamdest.
+        # Rename the bams to ERCC flavor if necessary (put them back later so jfkm can use)
         if ercc:
             with cd("/mnt/outputs"):
-                run("ln -v FusionInspector.junction_reads.bam FusionInspector.ERCC.junction_reads.bam")
-                run("ln -v FusionInspector.spanning_reads.bam FusionInspector.ERCC.spanning_reads.bam")
+                run("mv -v FusionInspector.junction_reads.bam FusionInspector.ERCC.junction_reads.bam")
+                run("mv -v FusionInspector.spanning_reads.bam FusionInspector.ERCC.spanning_reads.bam")
         bamdest = "{}/primary/derived/{}".format(base, sample_id)
         local("mkdir -p {}".format(bamdest))
 
@@ -306,9 +306,12 @@ def _fusions(base, output, methods, sample_id, fastqs, ercc=False):
     methods["outputs"] = [
         os.path.relpath(p, base) for p in get("/mnt/outputs/fusions/*", dest)]
     if bamdest:
-        if ercc: # Only copy over the ercc-named versions
+        if ercc: # copy the bams over then rename back to original
             methods["outputs"] += [
                 os.path.relpath(p, base) for p in get("/mnt/outputs/FusionInspector.ERCC.*_reads.bam", bamdest)]
+            with cd("/mnt/outputs"):
+                run("mv -v FusionInspector.ERCC.junction_reads.bam FusionInspector.junction_reads.bam")
+                run("mv -v FusionInspector.ERCC.spanning_reads.bam FusionInspector.spanning_reads.bam")
         else:
             methods["outputs"] += [
                 os.path.relpath(p, base) for p in get("/mnt/outputs/FusionInspector.*_reads.bam", bamdest)]
@@ -325,7 +328,6 @@ def _fusions(base, output, methods, sample_id, fastqs, ercc=False):
         f.write(json.dumps(methods, indent=4))
 
     # And move the FusionInspector files back to fusions dir.
-    # (this will include ERCC versions if present.)
     if bamdest:
         with cd("/mnt/outputs/fusions"):
             run("mv -v ../FusionInspector.*_reads.bam .")
@@ -479,7 +481,7 @@ def _setup(sample_id, base):
     print("Relative fastq paths", fastqs)
 
     if not fastqs:
-        _log_error("Unable find any fastqs or bams associated with {}".format(sample_id))
+        _log_error("Unable to find any fastqs or bams associated with {}".format(sample_id))
         return (False, False, False, False)
 
     # Create downstream output parent
@@ -602,7 +604,7 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False", ercc="Fals
             run("mv ../sorted.bam .")
             run("mv ../fusion.txt Kallisto")
 
-        # Calculate qc (bam-umend-qc)
+        # Calculate qc (bam-umend-qc or bam-mend-qc)
         methods["start"] = datetime.datetime.utcnow().isoformat()
         with settings(warn_only=True):
             if do_ercc:
@@ -636,14 +638,18 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False", ercc="Fals
         methods["outputs"] = [
             os.path.relpath(p, base) for p in get("/mnt/outputs/qc/*", dest)]
 
-        # Download the bams to primary/derived. hardlink ERCC bams to sortedByCoord.md.ERCC.bam before
-        # downloading those ERCC bams only so that they don't clobber any pre-existing non-ERCC bams.
+        # Download the bams to primary/derived. Move ERCC bams to sortedByCoord.md.ERCC.bam before
+        # downloading so that they don't clobber any pre-existing non-ERCC bams.
+        # Then put them back.
         if do_ercc:
             with cd("/mnt/outputs"):
-                run("ln -v sortedByCoord.md.bam sortedByCoord.md.ERCC.bam")
-                run("ln -v sortedByCoord.md.bam.bai sortedByCoord.md.ERCC.bam.bai")
+                run("mv -v sortedByCoord.md.bam sortedByCoord.md.ERCC.bam")
+                run("mv -v sortedByCoord.md.bam.bai sortedByCoord.md.ERCC.bam.bai")
             methods["outputs"] += [
                 os.path.relpath(p, base) for p in get("/mnt/outputs/sortedByCoord.md.ERCC.bam*", bamdest)]
+            with cd("/mnt/outputs"):
+                run("mv -v sortedByCoord.md.ERCC.bam sortedByCoord.md.bam")
+                run("mv -v sortedByCoord.md.ERCC.bam.bai sortedByCoord.md.bam.bai")
         else:
             methods["outputs"] += [
                 os.path.relpath(p, base) for p in get("/mnt/outputs/sortedByCoord.md.bam*", bamdest)]
@@ -671,7 +677,6 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False", ercc="Fals
             f.write(json.dumps(methods, indent=4))
 
         # And move the QC bam back so it's available to the variant caller
-        # (Don't move any ERCC-labeled copies back)
         with cd("/mnt/outputs/qc"):
             run("mv ../sortedByCoord.md.bam* .")
 
