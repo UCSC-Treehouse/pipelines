@@ -75,7 +75,7 @@ expression:
 			--sample-paired $(R1),$(R2)
 
 expression_ercc:
-	echo "Running expression pipeline 3.3.4-1.12.3, with ERCC transcripts, debug output suppressed, on $(R1) and $(R2)"
+	echo "Running expression pipeline 3.3.4-1.12.3, with ERCC transcripts on $(R1) and $(R2)"
 	mkdir -p outputs/expression
 	docker run --rm \
 		-v $(shell pwd)/outputs/expression:$(shell pwd)/outputs/expression \
@@ -83,6 +83,7 @@ expression_ercc:
 		-v $(shell pwd)/references:/references \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		quay.io/ucsc_cgl/rnaseq-cgl-pipeline@sha256:785eee9f750ab91078d84d1ee779b6f74717eafc09e49da817af6b87619b0756 \
+			--logInfo \
 			--save-bam \
 			--star /references/starindex_GRCh38_gencode23_ERCC92.tar.gz \
 			--rsem /references/rsem_ref_GRCh38_gencode23_ERCC92.tar.gz \
@@ -106,8 +107,9 @@ qc_ercc:
 	  -v `pwd`/$(shell find outputs/expression/*.bam):/inputs/sample.bam \
 		-v $(shell pwd)/outputs/qc:/tmp \
 		-v $(shell pwd)/outputs/qc:/outputs \
+		-v $(shell pwd)/references:/references \
 		ucsctreehouse/bam-mend-qc@sha256:1c3c62731eb7e6bbfcba4600807022e250a9ee5874477d115939a5d33f39e39f \
-			/inputs/sample.bam /outputs hg38_GENCODE_v23_ERCC92.reseqc.bed
+			/inputs/sample.bam /outputs /references/hg38_GENCODE_v23_ERCC92.reseqc.bed
 
 fusions:
 	echo "Running fusion 0.1.0 pipeline on $(R1) and $(R2)"
