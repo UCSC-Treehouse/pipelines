@@ -385,17 +385,16 @@ def _pizzly(base, output, methods, sample_id, ercc=False):
             return False
 
     # Update methods.json and copy pizzly-fusion.final file back
-    if do_ercc:
-        dest = "{}/pizzly-ERCC-0.37.3-43efb2f".format(output)
-    else:
-        dest = "{}/pizzly-0.37.3-43efb2f".format(output)
-    local("mkdir -p {}".format(dest))
     if ercc:
+        dest = "{}/pizzly-ERCC-0.37.3-43efb2f".format(output)
         kallisto_dest = "{}/ucsc_cgl-rnaseq-cgl-pipeline-ERCC-3.3.4-785eee9/Kallisto".format(
             os.path.relpath(output, base))
     else:
+        dest = "{}/pizzly-0.37.3-43efb2f".format(output)
         kallisto_dest = "{}/ucsc_cgl-rnaseq-cgl-pipeline-3.3.4-785eee9/Kallisto".format(
             os.path.relpath(output, base))
+
+    local("mkdir -p {}".format(dest))
     methods["inputs"] = ["{}/abundance.h5".format(kallisto_dest),
                          "{}/fusion.txt".format(kallisto_dest)]
     methods["outputs"] = [
@@ -625,7 +624,7 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False", ercc="Fals
 
         # Update methods.json and copy output back
         if do_ercc:
-            dest = "{}/ucsctreehouse-bam-mend-qc-v2.0.2-1c3c627".format(output)
+            dest = "{}/ucsctreehouse-bam-mend-qc-ERCC-v2.0.2-1c3c627".format(output)
             local("mkdir -p {}".format(dest))
             methods["inputs"] = ["{}/ucsc_cgl-rnaseq-cgl-pipeline-ERCC-3.3.4-785eee9/sorted.bam".format(
                 os.path.relpath(output, base))]
