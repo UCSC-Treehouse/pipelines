@@ -303,8 +303,24 @@ def _fusions(base, output, methods, sample_id, fastqs, ercc=False):
         dest = "{}/ucsctreehouse-fusion-0.1.0-3faac56".format(output)
     local("mkdir -p {}".format(dest))
     methods["inputs"] = fastqs
-    methods["outputs"] = [
-        os.path.relpath(p, base) for p in get("/mnt/outputs/fusions/*", dest)]
+
+    # If there is a "_STARtmp" dir in the outputs, we definitely don't want it.
+    # (It can contain a named pipe which will cause download attempts to hang.)
+    # Not sure if we should take its presence as an error and crash out, but let's start
+    # by moving it out of the way before we download the rest of /mnt/outputs/fusions.
+    with settings(warn_only=True):
+        with cd("/mnt/outputs/fusions"):
+            result = run("mv -v _STARtmp ..")
+        if not result.failed:
+            print("WARNING a _STARtmp dir was found in the fusion output. The fusion processing may have failed.")
+
+        # If get() doesn't find any files, it will terminate the entire fab process, so run inside a warn_only block.`
+        methods["outputs"] = [
+            os.path.relpath(p, base) for p in get("/mnt/outputs/fusions/*", dest)]
+        if methods["outputs"] == []:
+            print("ERROR no fusion output files found!\nContinuing with further pipeline items.")
+            return True # Return False to ask fab to skip the rest of this sample instead.
+
     if bamdest:
         if ercc: # copy the bams over then rename back to original
             methods["outputs"] += [
@@ -533,7 +549,10 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False", ercc="Fals
                 continue
 
         # Update methods.json and copy output back
-        dest = "{}/md5sum-3.7.0-ccba511".format(output)
+        if do_ercc:
+            dest = "{}/md5sum-ERCC-3.7.0-ccba511".format(output)
+        else:
+            dest = "{}/md5sum-3.7.0-ccba511".format(output)
         local("mkdir -p {}".format(dest))
         methods["inputs"] = fastqs
         methods["outputs"] = [
