@@ -319,7 +319,8 @@ def _fusions(base, output, methods, sample_id, fastqs, ercc=False):
             os.path.relpath(p, base) for p in get("/mnt/outputs/fusions/*", dest)]
         if methods["outputs"] == []:
             print("ERROR no fusion output files found!\nContinuing with further pipeline items.")
-            return True # Return False to ask fab to skip the rest of this sample instead.
+            local("rmdir -v {}".format(dest)) # Remove the empty fusion output dir to make it more obvious that there are no results
+            return False
 
     if bamdest:
         if ercc: # copy the bams over then rename back to original
@@ -531,6 +532,10 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False", ercc="Fals
     else:
        do_ercc = False
 
+    # Will accumulate sample_id strings of samples
+    # where the fusions step returned False
+    fusion_failed_samples = []
+
     for sample_id in sample_ids:
 
         # Set up the sample fastqs and output dir
@@ -698,45 +703,55 @@ def process(manifest="manifest.tsv", base=".", checksum_only="False", ercc="Fals
         with cd("/mnt/outputs/qc"):
             run("mv ../sortedByCoord.md.bam* .")
 
-        # Calculate pizzly from Kallisto results
-        if not _pizzly(base, output, methods, sample_id, ercc=do_ercc):
-            continue
-
-        # Calculate fusion
-        if not _fusions(base, output, methods, sample_id, fastqs, ercc=do_ercc):
-            continue
-
-        # Calculate jfkm from fastq files
-        if not _jfkm(base, output, methods, sample_id, fastqs, ercc=do_ercc):
-            continue
-
-        # Calculate variants
-        methods["start"] = datetime.datetime.utcnow().isoformat()
-        with settings(warn_only=True):
-            result = run("cd /mnt && make variants")
-            if result.failed:
-                _log_error("{} Failed variants: {}".format(sample_id, result))
+        if do_ercc:
+            print("This is an ERCC run -- Skipping pizzly, fusions, jfkm, variants.")
+        else:
+            # Calculate pizzly from Kallisto results
+            if not _pizzly(base, output, methods, sample_id, ercc=do_ercc):
                 continue
 
-        # Update methods.json and copy output back
-        if do_ercc:
-            dest = "{}/ucsctreehouse-mini-var-call-ERCC-0.0.1-1976429".format(output)
-            methods["inputs"] = ["{}/sortedByCoord.md.ERCC.bam".format(bamdest)]
-        else:
-            dest = "{}/ucsctreehouse-mini-var-call-0.0.1-1976429".format(output)
-            methods["inputs"] = ["{}/sortedByCoord.md.bam".format(bamdest)]
+            # Calculate fusion - continue the further steps even if it failed.
+            if not _fusions(base, output, methods, sample_id, fastqs, ercc=do_ercc):
+                fusion_failed_samples.append(sample_id)
 
-        local("mkdir -p {}".format(dest))
-        methods["outputs"] = [
-            os.path.relpath(p, base) for p in get("/mnt/outputs/variants/*", dest)]
-        methods["end"] = datetime.datetime.utcnow().isoformat()
-        methods["pipeline"] = {
-            "source": "https://github.com/UCSC-Treehouse/mini-var-call",
-            "docker": {
-                "url": "https://hub.docker.com/r/ucsctreehouse/mini-var-call",
-                "version": "0.0.1",
-                "hash": "sha256:197642937956ae73465ad2ef4b42501681ffc3ef07fecb703f58a3487eab37ff" # NOQA
+            # Calculate jfkm from fastq files
+            if not _jfkm(base, output, methods, sample_id, fastqs, ercc=do_ercc):
+                continue
+
+            # Calculate variants
+            methods["start"] = datetime.datetime.utcnow().isoformat()
+            with settings(warn_only=True):
+                result = run("cd /mnt && make variants")
+                if result.failed:
+                    _log_error("{} Failed variants: {}".format(sample_id, result))
+                    continue
+
+            # Update methods.json and copy output back
+            if do_ercc:
+                dest = "{}/ucsctreehouse-mini-var-call-ERCC-0.0.1-1976429".format(output)
+                methods["inputs"] = ["{}/sortedByCoord.md.ERCC.bam".format(bamdest)]
+            else:
+                dest = "{}/ucsctreehouse-mini-var-call-0.0.1-1976429".format(output)
+                methods["inputs"] = ["{}/sortedByCoord.md.bam".format(bamdest)]
+
+            local("mkdir -p {}".format(dest))
+            methods["outputs"] = [
+                os.path.relpath(p, base) for p in get("/mnt/outputs/variants/*", dest)]
+            methods["end"] = datetime.datetime.utcnow().isoformat()
+            methods["pipeline"] = {
+                "source": "https://github.com/UCSC-Treehouse/mini-var-call",
+                "docker": {
+                    "url": "https://hub.docker.com/r/ucsctreehouse/mini-var-call",
+                    "version": "0.0.1",
+                    "hash": "sha256:197642937956ae73465ad2ef4b42501681ffc3ef07fecb703f58a3487eab37ff" # NOQA
+                }
             }
-        }
-        with open("{}/methods.json".format(dest), "w") as f:
-            f.write(json.dumps(methods, indent=4))
+            with open("{}/methods.json".format(dest), "w") as f:
+                f.write(json.dumps(methods, indent=4))
+
+        print("Finished processing {}".format(sample_id))
+
+    ## Once all samples have been processed
+    print("Completed all samples in queue for this worker!")
+    for sid in fusion_failed_samples:
+        print("ERROR: Sample {} did not generate fusion results.".format(sid))
