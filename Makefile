@@ -67,6 +67,7 @@ expression:
 		-v $(shell pwd)/references:/references \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		quay.io/ucsc_cgl/rnaseq-cgl-pipeline@sha256:785eee9f750ab91078d84d1ee779b6f74717eafc09e49da817af6b87619b0756 \
+			--logInfo \
 			--save-bam \
 			--star /references/starIndex_hg38_no_alt.tar.gz \
 			--rsem /references/rsem_ref_hg38_no_alt.tar.gz \
