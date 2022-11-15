@@ -3,8 +3,9 @@
 # Generates expression, fusions, and variants folders in outputs
 
 # Look for any files with 1 or 2 followed by any non-numeric till the end
-R1 = $(shell find samples -iregex ".+1[^0-9]*$$" | head -1)
-R2 = $(shell find samples -iregex ".+2[^0-9]*$$" | head -1)
+# Alternatively, look for R1_001.fastq.gz and R2 -- most common format we use.
+R1 = $(shell find samples -iregex ".+\(1[^0-9]*\|R1_001.fastq.gz\)$$" | head -1)
+R2 = $(shell find samples -iregex ".+\(2[^0-9]*\|R2_001.fastq.gz\)$$" | head -1)
 
 REF_BASE ?= "http://hgdownload.soe.ucsc.edu/treehouse/reference"
 
@@ -27,6 +28,26 @@ reference:
 		tar -zxsvf references/STARFusion-GRCh38gencode23.tar.gz -C references --skip-old-files; \
 	fi
 
+
+reference_ercc:
+	echo "Downloading reference files including ERCC transcripts from $(REF_BASE)..."
+	mkdir -p references
+	wget -N -P references $(REF_BASE)/GRCh38_gencode23_ERCC92_transcripts.idx
+	wget -N -P references $(REF_BASE)/starindex_GRCh38_gencode23_ERCC92.tar.gz
+	wget -N -P references $(REF_BASE)/rsem_ref_GRCh38_gencode23_ERCC92.tar.gz
+	wget -N -P references $(REF_BASE)/hg38_GENCODE_v23_ERCC92.reseqc.bed
+	wget -N -P references $(REF_BASE)/STARFusion-GRCh38gencode23.tar.gz
+	wget -N -P references $(REF_BASE)/GCA_000001405.15_GRCh38_no_alt_analysis_set.dict
+	wget -N -P references $(REF_BASE)/GCA_000001405.15_GRCh38_no_alt_analysis_set.fa
+	wget -N -P references $(REF_BASE)/GCA_000001405.15_GRCh38_no_alt_analysis_set.fa.fai
+	echo "Verifying reference files..."
+	md5sum -c md5/references_ercc.md5
+	if [ ! -d "references/STARFusion-GRCh38gencode23" ]; then \
+		echo "Unpacking fusion reference files..."; \
+		tar -zxsvf references/STARFusion-GRCh38gencode23.tar.gz -C references --skip-old-files; \
+	fi
+
+
 checksums:
 	echo "Calculating md5 of input sample files"
 	mkdir -p outputs/checksums
@@ -38,7 +59,7 @@ checksums:
 			/bin/sh -c "md5sum * > /data/outputs/checksums/md5"
 
 expression:
-	echo "Running expression and qc pipeline 3.3.4-1.12.3 on $(R1) and $(R2)"
+	echo "Running expression pipeline 3.3.4-1.12.3 on $(R1) and $(R2)"
 	mkdir -p outputs/expression
 	docker run --rm \
 		-v $(shell pwd)/outputs/expression:$(shell pwd)/outputs/expression \
@@ -46,6 +67,7 @@ expression:
 		-v $(shell pwd)/references:/references \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		quay.io/ucsc_cgl/rnaseq-cgl-pipeline@sha256:785eee9f750ab91078d84d1ee779b6f74717eafc09e49da817af6b87619b0756 \
+			--logInfo \
 			--save-bam \
 			--star /references/starIndex_hg38_no_alt.tar.gz \
 			--rsem /references/rsem_ref_hg38_no_alt.tar.gz \
@@ -53,6 +75,22 @@ expression:
 			--work_mount $(shell pwd)/outputs/expression \
 			--sample-paired $(R1),$(R2)
 
+expression_ercc:
+	echo "Running expression pipeline 3.3.4-1.12.3, with ERCC transcripts on $(R1) and $(R2)"
+	mkdir -p outputs/expression
+	docker run --rm \
+		-v $(shell pwd)/outputs/expression:$(shell pwd)/outputs/expression \
+		-v $(shell pwd)/samples:/samples \
+		-v $(shell pwd)/references:/references \
+		-v /var/run/docker.sock:/var/run/docker.sock \
+		quay.io/ucsc_cgl/rnaseq-cgl-pipeline@sha256:785eee9f750ab91078d84d1ee779b6f74717eafc09e49da817af6b87619b0756 \
+			--logInfo \
+			--save-bam \
+			--star /references/starindex_GRCh38_gencode23_ERCC92.tar.gz \
+			--rsem /references/rsem_ref_GRCh38_gencode23_ERCC92.tar.gz \
+			--kallisto /references/GRCh38_gencode23_ERCC92_transcripts.idx \
+			--work_mount $(shell pwd)/outputs/expression \
+			--sample-paired $(R1),$(R2)
 qc:
 	echo "Running bam-umend-qc 1.1.1 pipeline on sorted bam from expression"
 	mkdir -p outputs/qc
@@ -62,6 +100,17 @@ qc:
 		-v $(shell pwd)/outputs/qc:/outputs \
 		ucsctreehouse/bam-umend-qc@sha256:5f286d72395fcc5085a96d463ae3511554acfa4951aef7d691bba2181596c31f \
 			/inputs/sample.bam /outputs
+
+qc_ercc:
+	echo "Running bam-mend-qc v2.0.2 pipeline, with ERCC transcripts, on sorted bam from expression"
+	mkdir -p outputs/qc
+	docker run --rm \
+	  -v `pwd`/$(shell find outputs/expression/*.bam):/inputs/sample.bam \
+		-v $(shell pwd)/outputs/qc:/tmp \
+		-v $(shell pwd)/outputs/qc:/outputs \
+		-v $(shell pwd)/references:/references \
+		ucsctreehouse/bam-mend-qc@sha256:1c3c62731eb7e6bbfcba4600807022e250a9ee5874477d115939a5d33f39e39f \
+			/inputs/sample.bam /outputs /references/hg38_GENCODE_v23_ERCC92.reseqc.bed
 
 fusions:
 	echo "Running fusion 0.1.0 pipeline on $(R1) and $(R2)"
