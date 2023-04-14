@@ -1,7 +1,7 @@
 """
 Treeshop: The Treehouse Workshop
 
-Experimental fabric based automation to process samples on a docker-machine cluster.
+Fabric-based automation to process samples on a docker-machine cluster.
 
 NOTE: This is crafted code primarily used internal to Treehouse and assumes
 quite a few things about the layout of primary and secondary files both
